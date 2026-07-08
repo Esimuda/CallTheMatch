@@ -1,0 +1,8 @@
+﻿node_modules/
+.env
+*.log
+dist/
+build/
+wallet-keypair.json
+txline-credentials.json
+data/
