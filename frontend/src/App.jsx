@@ -4,19 +4,23 @@ import MatchList from "./components/MatchList.jsx";
 import PredictionScreen from "./components/PredictionScreen.jsx";
 import LiveMatch from "./components/LiveMatch.jsx";
 import ResultScreen from "./components/ResultScreen.jsx";
+import { RoomLobby } from "./components/RoomScreens.jsx";
+import { createRoom } from "./lib/mockApi.js";
 
 export default function App() {
-  const [view, setView] = useState("home"); // home | predict | live | result
+  const [view, setView] = useState("home"); // home | predict | live | result | room
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [displayName, setDisplayName] = useState("");
   const [predictionText, setPredictionText] = useState("");
   const [predictionId, setPredictionId] = useState(null);
+  const [inviteCode, setInviteCode] = useState(null);
 
   function goHome() {
     setView("home");
     setSelectedMatch(null);
     setPredictionText("");
     setPredictionId(null);
+    setInviteCode(null);
   }
 
   function selectMatch(match) {
@@ -29,13 +33,40 @@ export default function App() {
     setPredictionText(text);
   }
 
+  async function handleCreateRoom() {
+    const res = await createRoom(selectedMatch.id, "local-demo-user", displayName);
+    setInviteCode(res.inviteCode);
+    setView("room");
+  }
+
+  // Create a room directly from Home, before any prediction exists yet.
+  // Sets the match, creates the room, and drops the user into the prediction
+  // screen with the invite code already attached.
+  async function handleCreateRoomFromHome(match) {
+    setSelectedMatch(match);
+    const res = await createRoom(match.id, "local-demo-user", displayName);
+    setInviteCode(res.inviteCode);
+    setView("predict");
+  }
+
+  async function handleJoinRoom(code, name, match) {
+    setDisplayName(name);
+    setInviteCode(code);
+    setSelectedMatch(match);
+    setView("predict");
+  }
+
   return (
     <div className="min-h-screen bg-ink text-paper font-body relative overflow-hidden">
       <TopBar view={view} onLogoClick={goHome} />
 
       <main className="relative z-10 max-w-2xl mx-auto px-5 pb-24">
         {view === "home" && (
-          <MatchList onSelectMatch={selectMatch} />
+          <MatchList
+            onSelectMatch={selectMatch}
+            onJoinRoom={handleJoinRoom}
+            onCreateRoomFromHome={handleCreateRoomFromHome}
+          />
         )}
 
         {view === "predict" && selectedMatch && (
@@ -46,6 +77,17 @@ export default function App() {
             onBack={goHome}
             onSubmitted={onPredictionSubmitted}
             onGoLive={function () { setView("live"); }}
+            onCreateRoom={handleCreateRoom}
+            inviteCode={inviteCode}
+            onGoToRoom={function () { setView("room"); }}
+          />
+        )}
+
+        {view === "room" && selectedMatch && inviteCode && (
+          <RoomLobby
+            inviteCode={inviteCode}
+            onBack={function () { setView("predict"); }}
+            onWatchLive={function () { setView("live"); }}
           />
         )}
 
@@ -53,7 +95,7 @@ export default function App() {
           <LiveMatch
             match={selectedMatch}
             predictionText={predictionText}
-            onBack={function () { setView("predict"); }}
+            onBack={function () { setView(inviteCode ? "room" : "predict"); }}
             onFinish={function () { setView("result"); }}
           />
         )}
@@ -64,6 +106,7 @@ export default function App() {
             predictionId={predictionId}
             predictionText={predictionText}
             displayName={displayName}
+            inviteCode={inviteCode}
             onDone={goHome}
           />
         )}

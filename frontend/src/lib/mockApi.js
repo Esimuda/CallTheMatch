@@ -98,8 +98,6 @@ export async function fetchOddsHistory(matchId) {
 }
 
 // GET /api/matches/:id/narrative
-// funRecap: casual, friend-texting-you tone - the lead content on the result screen
-// marketNarrative: the odds/data version - kept as secondary, optional detail
 export async function fetchNarrative(matchId) {
   await delay(700);
   return {
@@ -140,4 +138,39 @@ export async function fetchPredictionResult(predictionId, originalText) {
     finalScoreAway: 0,
     shareCardImageUrl: null,
   };
+}
+
+// POST /api/rooms - Phase 2
+export async function createRoom(matchId, createdByUserId, createdByName) {
+  await delay(500);
+  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return {
+    roomId: "room_" + Math.random().toString(36).slice(2, 9),
+    inviteCode: code,
+  };
+}
+
+// GET /api/rooms/:code - Phase 2
+export async function fetchRoom(code, joiningDisplayName) {
+  await delay(500);
+  const members = [
+    { displayName: "Dele", accuracyPct: 45, predictionText: "Morocco upset, 1-0 to them late on" },
+    { displayName: "Chiamaka", accuracyPct: 62, predictionText: "France wins it 1-0, tight game all through" },
+    { displayName: "Tunde", accuracyPct: 33, predictionText: "0-0 and penalties, Morocco through on spot kicks" },
+  ];
+
+  if (joiningDisplayName) {
+    members.push({ displayName: joiningDisplayName, accuracyPct: null, predictionText: null });
+  }
+
+  return {
+    roomId: "room_demo",
+    matchId: "18209181",
+    inviteCode: code_or_default(code),
+    members: members,
+  };
+}
+
+function code_or_default(code) {
+  return code || "ABCD12";
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Mic, Square, ArrowLeft, Send, Check, Sparkles, Radio } from "lucide-react";
+import { Mic, Square, ArrowLeft, Send, Check, Sparkles, Radio, Users } from "lucide-react";
 import { submitPrediction } from "../lib/mockApi.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
@@ -16,12 +16,9 @@ export default function PredictionScreen(props) {
   const [submitting, setSubmitting] = useState(false);
   const [extracted, setExtracted] = useState(null);
   const [predictionId, setPredictionId] = useState(null);
+  const [creatingRoom, setCreatingRoom] = useState(false);
 
-  // Decided once, on mount - does NOT re-evaluate as the user types their name.
-  // This is the fix: previously the name field's visibility depended on nameInput
-  // being empty, so typing a single character made the field disappear mid-type.
   const isFirstTimeRef = useRef(!props.displayName);
-
   const recognitionRef = useRef(null);
 
   useEffect(function () {
@@ -71,7 +68,7 @@ export default function PredictionScreen(props) {
       userId: "local-demo-user",
       displayName: nameInput.trim(),
       matchId: match.id,
-      roomId: null,
+      roomId: props.inviteCode || null,
       predictionText: text.trim(),
     });
 
@@ -81,6 +78,16 @@ export default function PredictionScreen(props) {
     props.onSubmitted(result.predictionId, text.trim());
   }
 
+  async function handlePlayWithFriends() {
+    if (props.inviteCode) {
+      props.onGoToRoom();
+      return;
+    }
+    setCreatingRoom(true);
+    await props.onCreateRoom();
+    setCreatingRoom(false);
+  }
+
   if (extracted) {
     return (
       <ConfirmationCard
@@ -88,7 +95,9 @@ export default function PredictionScreen(props) {
         text={text}
         extracted={extracted}
         onGoLive={props.onGoLive}
-        onEditPrediction={function () { setExtracted(null); }}
+        onPlayWithFriends={handlePlayWithFriends}
+        creatingRoom={creatingRoom}
+        alreadyInRoom={!!props.inviteCode}
       />
     );
   }
@@ -101,6 +110,13 @@ export default function PredictionScreen(props) {
       </button>
 
       <MatchStrip match={match} />
+
+      {props.inviteCode && (
+        <div className="mt-4 flex items-center gap-2 bg-pitch/10 border border-pitch/40 rounded-xl px-4 py-2.5">
+          <Users className="w-4 h-4 text-pitch-bright" />
+          <span className="text-paper text-sm">Joining room <span className="font-mono text-gold">{props.inviteCode}</span></span>
+        </div>
+      )}
 
       <p className="text-gold font-mono text-xs uppercase tracking-[0.2em] mt-8 mb-2">
         Your call
@@ -236,12 +252,22 @@ function ConfirmationCard(props) {
         Didn't get it right? Just submit a new call - it replaces this one.
       </p>
 
-      <button
-        onClick={props.onGoLive}
-        className="mt-6 w-full bg-pitch hover:bg-pitch-bright text-ink font-display font-semibold text-base rounded-xl py-3.5 transition-colors"
-      >
-        Watch the match live
-      </button>
+      <div className="flex gap-3 mt-6">
+        <button
+          onClick={props.onPlayWithFriends}
+          disabled={props.creatingRoom}
+          className="flex-1 flex items-center justify-center gap-2 bg-surface border border-gold/40 hover:border-gold disabled:opacity-60 text-gold font-display font-semibold text-sm rounded-xl py-3.5 transition-colors"
+        >
+          <Users className="w-4 h-4" />
+          {props.creatingRoom ? "Setting up..." : (props.alreadyInRoom ? "Go to room" : "Play with friends")}
+        </button>
+        <button
+          onClick={props.onGoLive}
+          className="flex-1 bg-pitch hover:bg-pitch-bright text-ink font-display font-semibold text-sm rounded-xl py-3.5 transition-colors"
+        >
+          Watch live
+        </button>
+      </div>
     </div>
   );
 }

@@ -57,6 +57,26 @@ export default {
           "0%, 100%": { boxShadow: "0 0 0px rgba(255, 197, 51, 0.0)" },
           "50%": { boxShadow: "0 0 40px rgba(255, 197, 51, 0.35)" },
         },
+        "flicker": {
+          "0%, 100%": { opacity: 1 },
+          "92%": { opacity: 1 },
+          "93%": { opacity: 0.75 },
+          "94%": { opacity: 1 },
+          "96%": { opacity: 0.85 },
+          "97%": { opacity: 1 },
+        },
+        "screen-in": {
+          "0%": { opacity: 0, transform: "translateY(10px) scale(0.99)" },
+          "100%": { opacity: 1, transform: "translateY(0) scale(1)" },
+        },
+        "row-in": {
+          "0%": { opacity: 0, transform: "translateX(-8px)" },
+          "100%": { opacity: 1, transform: "translateX(0)" },
+        },
+        "spin-slow": {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" },
+        },
       },
       animation: {
         "pulse-live": "pulse-live 1.6s ease-in-out infinite",
@@ -67,6 +87,10 @@ export default {
         "confetti-fall": "confetti-fall 1.8s ease-in forwards",
         "count-pop": "count-pop 0.5s ease both",
         "glow-pulse": "glow-pulse 2.4s ease-in-out infinite",
+        "flicker": "flicker 6s ease-in-out infinite",
+        "screen-in": "screen-in 0.4s ease both",
+        "row-in": "row-in 0.45s ease both",
+        "spin-slow": "spin-slow 12s linear infinite",
       },
     },
   },

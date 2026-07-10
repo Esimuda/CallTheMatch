@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ChevronRight, Calendar } from "lucide-react";
 import { fetchMatches } from "../lib/mockApi.js";
+import { JoinRoomForm, CreateRoomForm } from "./RoomScreens.jsx";
 
 // ISO 3166-1 codes for flagcdn.com - not FIFA codes, so mapped by hand here
 const FLAG_ISO = {
@@ -69,6 +70,13 @@ export default function MatchList(props) {
                 />
               );
             })}
+          </div>
+        )}
+
+        {!loading && (
+          <div className="mt-6 flex flex-col gap-3">
+            <CreateRoomForm matches={matches} onCreate={props.onCreateRoomFromHome} />
+            <JoinRoomForm matches={matches} onJoin={props.onJoinRoom} />
           </div>
         )}
       </div>

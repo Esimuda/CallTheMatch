@@ -28,9 +28,25 @@ body {
   );
 }
 
-/* floodlight beam sweep, used behind the hero headline */
+/* floodlight beam sweep, used behind the hero headline - subtle flicker like a real stadium light */
 .floodlight-glow {
   background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(255, 197, 51, 0.20), transparent 70%);
+  animation: flicker 6s ease-in-out infinite;
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.75; }
+  94% { opacity: 1; }
+  96% { opacity: 0.85; }
+  97% { opacity: 1; }
+}
+
+/* dashed connector line used in room invite / leaderboard layouts */
+.dash-connector {
+  background-image: repeating-linear-gradient(to bottom, #1E2A3D 0, #1E2A3D 4px, transparent 4px, transparent 9px);
+  width: 1px;
 }
 
 @media (prefers-reduced-motion: reduce) {

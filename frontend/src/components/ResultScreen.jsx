@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
-import { ArrowLeft, Trophy, Share2, Check, X, Home, Download, ChevronDown, BarChart3 } from "lucide-react";
-import { fetchNarrative, fetchPredictionResult } from "../lib/mockApi.js";
+import { ArrowLeft, Trophy, Share2, Check, X, Home, Download, ChevronDown, BarChart3, Users, Crown } from "lucide-react";
+import { fetchNarrative, fetchPredictionResult, fetchRoom } from "../lib/mockApi.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
 function flagUrl(code, width) {
@@ -15,10 +15,13 @@ export default function ResultScreen(props) {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [groupDownloading, setGroupDownloading] = useState(false);
   const [count, setCount] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showData, setShowData] = useState(false);
+  const [roomMembers, setRoomMembers] = useState(null);
   const shareCardRef = useRef(null);
+  const groupCardRef = useRef(null);
 
   useEffect(function () {
     let active = true;
@@ -31,6 +34,16 @@ export default function ResultScreen(props) {
       setResult(vals[1]);
       setLoading(false);
       setShowConfetti(true);
+
+      if (props.inviteCode) {
+        fetchRoom(props.inviteCode, null).then(function (res) {
+          if (!active) return;
+          const you = { displayName: props.displayName || "You", accuracyPct: vals[1].accuracyPct, predictionText: props.predictionText, isYou: true };
+          const combined = res.members.filter(function (m) { return m.accuracyPct !== null; }).concat([you]);
+          combined.sort(function (a, b) { return b.accuracyPct - a.accuracyPct; });
+          setRoomMembers(combined);
+        });
+      }
     });
     return function () { active = false; };
   }, [match.id, props.predictionId]);
@@ -56,22 +69,27 @@ export default function ResultScreen(props) {
     setTimeout(function () { setCopied(false); }, 1800);
   }
 
-  async function handleDownload() {
-    if (!shareCardRef.current || downloading) return;
-    setDownloading(true);
+  async function downloadNode(node, filename, setBusy) {
+    if (!node || setBusy === true) return;
+    setBusy(true);
     try {
-      const dataUrl = await toPng(shareCardRef.current, {
-        pixelRatio: 2,
-        backgroundColor: "#070B14",
-      });
+      const dataUrl = await toPng(node, { pixelRatio: 2, backgroundColor: "#070B14" });
       const link = document.createElement("a");
-      link.download = "callthematch-" + match.homeCode + "-vs-" + match.awayCode + ".png";
+      link.download = filename;
       link.href = dataUrl;
       link.click();
     } catch (err) {
       console.error("Could not generate image", err);
     }
-    setDownloading(false);
+    setBusy(false);
+  }
+
+  function handleDownload() {
+    downloadNode(shareCardRef.current, "callthematch-" + match.homeCode + "-vs-" + match.awayCode + ".png", setDownloading);
+  }
+
+  function handleGroupDownload() {
+    downloadNode(groupCardRef.current, "callthematch-room-" + (props.inviteCode || "group") + ".png", setGroupDownloading);
   }
 
   if (loading) {
@@ -107,6 +125,17 @@ export default function ResultScreen(props) {
         summary={result.comparisonSummary}
         breakdown={result.scoreBreakdown}
       />
+
+      {roomMembers && (
+        <GroupResultCard
+          groupCardRef={groupCardRef}
+          match={match}
+          members={roomMembers}
+          inviteCode={props.inviteCode}
+          onDownload={handleGroupDownload}
+          downloading={groupDownloading}
+        />
+      )}
 
       <button
         onClick={function () { setShowData(!showData); }}
@@ -210,6 +239,77 @@ function BreakdownRow(props) {
         <X className="w-4 h-4 text-red shrink-0" />
       )}
       <span className="text-slate text-sm">{props.label}</span>
+    </div>
+  );
+}
+
+function GroupResultCard(props) {
+  const members = props.members;
+  const youIndex = members.findIndex(function (m) { return m.isYou; });
+  const yourRank = youIndex + 1;
+  const beatenCount = members.length - 1 - youIndex >= 0 ? members.length - youIndex - 1 : 0;
+  const totalOthers = members.length - 1;
+  const isTop = yourRank === 1;
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-center gap-2 mb-3">
+        <Users className="w-4 h-4 text-gold" />
+        <p className="text-slate text-xs font-mono uppercase tracking-wider">Group result</p>
+      </div>
+
+      <div ref={props.groupCardRef} className="bg-gradient-to-br from-surface to-ink border border-gold/30 rounded-2xl p-6 relative overflow-hidden">
+        <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full bg-pitch-bright/10 blur-2xl"></div>
+
+        <div className="flex items-center justify-between mb-4">
+          <span className="font-display font-bold text-paper text-base">CallTheMatch</span>
+          <span className="text-slate-faint font-mono text-xs">Room {props.inviteCode}</span>
+        </div>
+
+        <p className="font-display font-black text-paper text-2xl leading-tight mb-1">
+          {isTop
+            ? "Top of the room."
+            : "You beat " + beatenCount + " of " + totalOthers + " friends."}
+        </p>
+        <p className="text-slate text-sm mb-5">
+          Ranked #{yourRank} of {members.length} on {props.match.homeTeam} vs {props.match.awayTeam}
+        </p>
+
+        <div className="flex flex-col gap-2">
+          {members.map(function (m, i) {
+            return <GroupRow key={m.displayName} member={m} rank={i + 1} />;
+          })}
+        </div>
+      </div>
+
+      <button
+        onClick={props.onDownload}
+        disabled={props.downloading}
+        className="mt-3 w-full flex items-center justify-center gap-2 bg-gold hover:bg-gold-bright disabled:opacity-60 text-ink text-sm font-body font-semibold rounded-xl py-3 transition-colors"
+      >
+        <Download className="w-4 h-4" />
+        {props.downloading ? "Rendering..." : "Download group card"}
+      </button>
+    </div>
+  );
+}
+
+function GroupRow(props) {
+  const m = props.member;
+  return (
+    <div
+      className={
+        "flex items-center gap-3 rounded-xl px-3 py-2.5 " +
+        (m.isYou ? "bg-gold/10 border border-gold/40" : "bg-ink/40")
+      }
+    >
+      <span className="w-5 text-center font-mono text-xs text-slate-faint shrink-0">
+        {props.rank === 1 ? <Crown className="w-3.5 h-3.5 text-gold inline" /> : props.rank}
+      </span>
+      <span className={"flex-1 text-sm " + (m.isYou ? "text-gold font-semibold" : "text-paper")}>
+        {m.isYou ? "You" : m.displayName}
+      </span>
+      <span className="font-mono text-sm text-paper">{m.accuracyPct}%</span>
     </div>
   );
 }
