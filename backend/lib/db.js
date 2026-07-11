@@ -137,3 +137,41 @@ export async function upsertUser(id, displayName) {
   if (error) throw error;
   return data[0];
 }
+
+// --- Leaderboard (per-match, not truly global across matches) ---
+export async function getMatchLeaderboard(matchId, requestingUserId) {
+  const { data, error } = await supabase
+    .from("predictions")
+    .select("user_id, prediction_text, accuracy_pct, users(display_name)")
+    .eq("match_id", matchId)
+    .not("accuracy_pct", "is", null)
+    .order("accuracy_pct", { ascending: false });
+
+  if (error) throw error;
+
+  const entries = data.map((p) => ({
+    displayName: p.users?.display_name || "Unknown",
+    accuracyPct: p.accuracy_pct,
+    predictionText: p.prediction_text,
+    isYou: requestingUserId ? p.user_id === requestingUserId : false,
+  }));
+
+  let yourRank = null;
+  let beatPct = null;
+  if (requestingUserId) {
+    const idx = entries.findIndex((e) => e.isYou);
+    if (idx !== -1) {
+      yourRank = idx + 1;
+      const total = entries.length;
+      beatPct = total > 1 ? Math.round(((total - yourRank) / (total - 1)) * 100) : 100;
+    }
+  }
+
+  return {
+    matchId,
+    totalPredictions: entries.length,
+    entries,
+    yourRank,
+    beatPct,
+  };
+}

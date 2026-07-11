@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Mic, Square, ArrowLeft, Send, Check, Sparkles, Radio, Users } from "lucide-react";
-import { submitPrediction } from "../lib/mockApi.js";
+import { submitPrediction } from "../lib/api.js";
 import { getUserId } from "../lib/identity.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };

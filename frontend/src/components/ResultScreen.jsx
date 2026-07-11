@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import { ArrowLeft, Trophy, Share2, Check, X, Home, Download, ChevronDown, BarChart3, Users, Crown } from "lucide-react";
-import { fetchNarrative, fetchPredictionResult, fetchRoom } from "../lib/mockApi.js";
+import { fetchNarrative, fetchPredictionResult, fetchRoom } from "../lib/api.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
 function flagUrl(code, width) {

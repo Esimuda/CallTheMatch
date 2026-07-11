@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeft, Trophy, Crown, Users, Megaphone } from "lucide-react";
-import { fetchGlobalLeaderboard } from "../lib/mockApi.js";
+import { fetchGlobalLeaderboard } from "../lib/api.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
 function flagUrl(code, width) {

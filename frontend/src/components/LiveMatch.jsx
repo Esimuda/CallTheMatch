@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ArrowLeft, TrendingUp, FastForward } from "lucide-react";
-import { fetchOddsHistory } from "../lib/mockApi.js";
+import { fetchOddsHistory } from "../lib/api.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
 function flagUrl(code, width) {

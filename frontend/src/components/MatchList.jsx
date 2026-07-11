@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ChevronRight, Calendar, Trophy } from "lucide-react";
-import { fetchMatches } from "../lib/mockApi.js";
+import { fetchMatches } from "../lib/api.js";
 import { JoinRoomForm, CreateRoomForm } from "./RoomScreens.jsx";
 
 const FLAG_ISO = {

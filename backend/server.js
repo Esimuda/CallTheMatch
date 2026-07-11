@@ -74,6 +74,12 @@ app.post("/api/predictions", async (req, res) => {
       extraction_confidence: extracted.confidence,
     });
 
+    // Submitting a prediction with a roomId implicitly joins that room -
+    // no separate "join" step in the frontend flow.
+    if (roomId) {
+      await db.addRoomMember(roomId, userId);
+    }
+
     res.json({
       predictionId: prediction.id,
       status: "submitted",
@@ -144,7 +150,6 @@ app.get("/api/predictions/:id/result", async (req, res) => {
       return res.status(400).json({ error: "Match has not finished yet" });
     }
 
-    // If already scored, return cached result
     if (prediction.accuracy_pct !== null) {
       return res.json({
         originalPredictionText: prediction.prediction_text,
@@ -157,7 +162,6 @@ app.get("/api/predictions/:id/result", async (req, res) => {
       });
     }
 
-    // Score it fresh using stored match state (rebuilt from raw scores feed)
     const rawRes = await axios.get(`${apiBaseUrl}/scores/snapshot/${match.id}`, {
       headers: txlineHeaders,
       params: { Ts: 0 },
@@ -196,6 +200,19 @@ app.get("/api/predictions/:id/result", async (req, res) => {
   }
 });
 
+// --- GET /api/matches/:id/leaderboard ---
+app.get("/api/matches/:id/leaderboard", async (req, res) => {
+  try {
+    const matchId = req.params.id;
+    const userId = req.query.userId || null;
+    const leaderboard = await db.getMatchLeaderboard(matchId, userId);
+    res.json(leaderboard);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch leaderboard" });
+  }
+});
+
 // --- POST /api/rooms ---
 app.post("/api/rooms", async (req, res) => {
   try {
@@ -221,13 +238,6 @@ app.get("/api/rooms/:code", async (req, res) => {
     const room = await db.getRoomByCode(req.params.code.toUpperCase());
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
-    }
-
-    const joiningUserId = req.query.userId;
-    const joiningName = req.query.displayName;
-    if (joiningUserId && joiningName) {
-      await db.upsertUser(joiningUserId, joiningName);
-      await db.addRoomMember(room.id, joiningUserId);
     }
 
     const members = await db.getRoomMembersWithPredictions(room.id, room.match_id);

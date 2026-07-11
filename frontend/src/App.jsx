@@ -7,7 +7,7 @@ import ResultScreen from "./components/ResultScreen.jsx";
 import GlobalLeaderboard from "./components/GlobalLeaderboard.jsx";
 import AccountRecovery from "./components/AccountRecovery.jsx";
 import { RoomLobby } from "./components/RoomScreens.jsx";
-import { createRoom } from "./lib/mockApi.js";
+import { createRoom } from "./lib/api.js";
 import { getUserId, getDisplayName, setDisplayName as persistDisplayName } from "./lib/identity.js";
 
 export default function App() {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Users, Copy, Check, ArrowLeft, Play, Crown, LogIn, X, PlusCircle } from "lucide-react";
-import { fetchRoom } from "../lib/mockApi.js";
+import { fetchRoom } from "../lib/api.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
 function flagUrl(code, width) {
