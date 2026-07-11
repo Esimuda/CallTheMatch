@@ -35,6 +35,10 @@ export default function ResultScreen(props) {
       setLoading(false);
       setShowConfetti(true);
 
+      if (props.onResultLoaded) {
+        props.onResultLoaded(vals[1].accuracyPct);
+      }
+
       if (props.inviteCode) {
         fetchRoom(props.inviteCode, null).then(function (res) {
           if (!active) return;
@@ -70,7 +74,7 @@ export default function ResultScreen(props) {
   }
 
   async function downloadNode(node, filename, setBusy) {
-    if (!node || setBusy === true) return;
+    if (!node) return;
     setBusy(true);
     try {
       const dataUrl = await toPng(node, { pixelRatio: 2, backgroundColor: "#070B14" });
@@ -125,6 +129,8 @@ export default function ResultScreen(props) {
         summary={result.comparisonSummary}
         breakdown={result.scoreBreakdown}
       />
+
+      <GlobalLeaderboardTeaser onView={props.onViewGlobalLeaderboard} />
 
       {roomMembers && (
         <GroupResultCard
@@ -240,6 +246,24 @@ function BreakdownRow(props) {
       )}
       <span className="text-slate text-sm">{props.label}</span>
     </div>
+  );
+}
+
+function GlobalLeaderboardTeaser(props) {
+  return (
+    <button
+      onClick={props.onView}
+      className="mt-6 w-full flex items-center justify-between bg-surface border border-line hover:border-gold rounded-2xl px-5 py-4 transition-colors group"
+    >
+      <div className="flex items-center gap-3">
+        <Trophy className="w-5 h-5 text-gold" />
+        <div className="text-left">
+          <p className="text-paper text-sm font-medium">See the global leaderboard</p>
+          <p className="text-slate-faint text-xs">Where does your call rank against everyone else's</p>
+        </div>
+      </div>
+      <span className="text-slate-faint group-hover:text-gold text-lg transition-colors">-{">"}</span>
+    </button>
   );
 }
 

@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { ChevronRight, Calendar } from "lucide-react";
+import { ChevronRight, Calendar, Trophy } from "lucide-react";
 import { fetchMatches } from "../lib/mockApi.js";
 import { JoinRoomForm, CreateRoomForm } from "./RoomScreens.jsx";
 
-// ISO 3166-1 codes for flagcdn.com - not FIFA codes, so mapped by hand here
 const FLAG_ISO = {
   FRA: "fr",
   MAR: "ma",
@@ -67,6 +66,7 @@ export default function MatchList(props) {
                   match={m}
                   delayMs={i * 90}
                   onClick={function () { props.onSelectMatch(m); }}
+                  onViewLeaderboard={function () { props.onViewLeaderboard(m); }}
                 />
               );
             })}
@@ -87,7 +87,6 @@ export default function MatchList(props) {
 function Hero(props) {
   return (
     <div className="relative pt-16 pb-14 pitch-lines floodlight-glow rounded-b-[2.5rem] -mx-5 px-5 overflow-hidden">
-      {/* floodlight sweep beam */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-gold/10 to-transparent animate-sweep"></div>
       </div>
@@ -128,7 +127,6 @@ function Hero(props) {
         </div>
       )}
 
-      {/* rolling ball with trail, along the base of the hero */}
       <div className="absolute left-0 right-0 bottom-8 h-10 overflow-hidden pointer-events-none">
         <BallWithTrail />
       </div>
@@ -155,35 +153,44 @@ function BallWithTrail() {
 function FixtureCard(props) {
   const m = props.match;
   return (
-    <button
-      onClick={props.onClick}
-      className="animate-rise text-left bg-surface border border-line rounded-2xl px-5 py-5 flex items-center justify-between hover:border-gold hover:animate-glow-pulse transition-colors group"
+    <div
+      className="animate-rise bg-surface border border-line rounded-2xl overflow-hidden hover:border-gold transition-colors group"
       style={{ animationDelay: props.delayMs + "ms" }}
     >
-      <div className="flex items-center gap-4">
-        <div className="flex items-center -space-x-3">
-          <img
-            src={flagUrl(m.homeCode, 160)}
-            alt={m.homeTeam}
-            className="w-14 h-14 rounded-full object-cover border-2 border-surface shadow-md"
-          />
-          <img
-            src={flagUrl(m.awayCode, 160)}
-            alt={m.awayTeam}
-            className="w-14 h-14 rounded-full object-cover border-2 border-surface shadow-md"
-          />
-        </div>
-        <div>
-          <div className="font-display font-semibold text-paper text-xl leading-tight">
-            {m.homeTeam} <span className="text-slate-faint font-body font-normal text-base">vs</span> {m.awayTeam}
+      <button onClick={props.onClick} className="w-full text-left px-5 py-5 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center -space-x-3">
+            <img
+              src={flagUrl(m.homeCode, 160)}
+              alt={m.homeTeam}
+              className="w-14 h-14 rounded-full object-cover border-2 border-surface shadow-md"
+            />
+            <img
+              src={flagUrl(m.awayCode, 160)}
+              alt={m.awayTeam}
+              className="w-14 h-14 rounded-full object-cover border-2 border-surface shadow-md"
+            />
           </div>
-          <div className="text-slate text-xs mt-1 font-mono">
-            {formatKickoff(m.kickoffTime)} - {m.competition}
+          <div>
+            <div className="font-display font-semibold text-paper text-xl leading-tight">
+              {m.homeTeam} <span className="text-slate-faint font-body font-normal text-base">vs</span> {m.awayTeam}
+            </div>
+            <div className="text-slate text-xs mt-1 font-mono">
+              {formatKickoff(m.kickoffTime)} - {m.competition}
+            </div>
           </div>
         </div>
-      </div>
-      <ChevronRight className="w-6 h-6 text-slate-faint group-hover:text-gold group-hover:translate-x-1 transition-all" />
-    </button>
+        <ChevronRight className="w-6 h-6 text-slate-faint group-hover:text-gold group-hover:translate-x-1 transition-all" />
+      </button>
+
+      <button
+        onClick={props.onViewLeaderboard}
+        className="w-full flex items-center justify-center gap-1.5 border-t border-line/60 py-2.5 text-slate hover:text-gold hover:bg-surface-alt text-xs font-mono uppercase tracking-wider transition-colors"
+      >
+        <Trophy className="w-3.5 h-3.5" />
+        View leaderboard
+      </button>
+    </div>
   );
 }
 

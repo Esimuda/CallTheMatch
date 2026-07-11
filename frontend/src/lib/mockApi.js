@@ -174,3 +174,71 @@ export async function fetchRoom(code, joiningDisplayName) {
 function code_or_default(code) {
   return code || "ABCD12";
 }
+
+// Global leaderboard - all callers for a match, not scoped to a room.
+// GET /api/matches/:id/leaderboard (proposed endpoint - not yet in the written spec,
+// but a natural sibling of /api/rooms/:code with roomId omitted)
+const GLOBAL_SAMPLE = [
+  { displayName: "Chiamaka", accuracyPct: 94, predictionText: "France 2-0, clean sheet, Mbappe brace" },
+  { displayName: "Tunde", accuracyPct: 89, predictionText: "France to win comfortably, 2-1" },
+  { displayName: "Ngozi", accuracyPct: 85, predictionText: "2-0 France, Morocco tired legs second half" },
+  { displayName: "Yusuf", accuracyPct: 81, predictionText: "France by two goals, no drama" },
+  { displayName: "Blessing", accuracyPct: 76, predictionText: "Tight one, 1-0 France" },
+  { displayName: "Kelechi", accuracyPct: 70, predictionText: "France win, not sure on the exact score" },
+  { displayName: "Fatima", accuracyPct: 64, predictionText: "2-1 France, red card for Morocco" },
+  { displayName: "Obi", accuracyPct: 58, predictionText: "Morocco hold on for a draw" },
+  { displayName: "Grace", accuracyPct: 51, predictionText: "3-1 France, goal fest" },
+  { displayName: "Wale", accuracyPct: 44, predictionText: "Morocco sneak it 1-0" },
+  { displayName: "Aisha", accuracyPct: 37, predictionText: "Goes to extra time, France eventually" },
+  { displayName: "Emeka", accuracyPct: 22, predictionText: "Morocco win it outright, upset of the round" },
+];
+
+export async function fetchGlobalLeaderboard(matchId, yourEntry) {
+  await delay(600);
+
+  let combined = GLOBAL_SAMPLE.slice();
+  if (yourEntry) {
+    combined = combined.concat([{
+      displayName: yourEntry.displayName || "You",
+      accuracyPct: yourEntry.accuracyPct,
+      predictionText: yourEntry.predictionText,
+      isYou: true,
+    }]);
+  }
+
+  combined.sort(function (a, b) { return b.accuracyPct - a.accuracyPct; });
+
+  let yourRank = null;
+  let beatPct = null;
+  if (yourEntry) {
+    const idx = combined.findIndex(function (m) { return m.isYou; });
+    yourRank = idx + 1;
+    const total = combined.length;
+    beatPct = total > 1 ? Math.round(((total - yourRank) / (total - 1)) * 100) : 100;
+  }
+
+  return {
+    matchId: matchId,
+    totalPredictions: 1247,
+    entries: combined,
+    yourRank: yourRank,
+    beatPct: beatPct,
+  };
+}
+
+// ---- Stretch feature: optional email magic-link recovery ----
+// Fully mocked - there is no real email-sending backend yet. This exists so
+// the UI flow is built and ready; wire to a real endpoint (e.g. POST
+// /api/auth/magic-link and GET /api/auth/magic-link/:token) whenever the
+// backend adds it. Not required for judging - identity works fine without it
+// via localStorage alone, per spec section 6.
+
+export async function requestMagicLink(email) {
+  await delay(700);
+  return { status: "sent", email: email };
+}
+
+export async function verifyMagicLink(token) {
+  await delay(500);
+  return { status: "verified" };
+}

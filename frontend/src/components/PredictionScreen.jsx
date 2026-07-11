@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Mic, Square, ArrowLeft, Send, Check, Sparkles, Radio, Users } from "lucide-react";
 import { submitPrediction } from "../lib/mockApi.js";
+import { getUserId } from "../lib/identity.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
 function flagUrl(code, width) {
@@ -65,7 +66,7 @@ export default function PredictionScreen(props) {
     props.setDisplayName(nameInput.trim());
 
     const result = await submitPrediction({
-      userId: "local-demo-user",
+      userId: getUserId(),
       displayName: nameInput.trim(),
       matchId: match.id,
       roomId: props.inviteCode || null,

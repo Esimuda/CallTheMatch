@@ -1,19 +1,34 @@
 import React, { useState } from "react";
-import { Radio } from "lucide-react";
+import { Radio, Mail } from "lucide-react";
 import MatchList from "./components/MatchList.jsx";
 import PredictionScreen from "./components/PredictionScreen.jsx";
 import LiveMatch from "./components/LiveMatch.jsx";
 import ResultScreen from "./components/ResultScreen.jsx";
+import GlobalLeaderboard from "./components/GlobalLeaderboard.jsx";
+import AccountRecovery from "./components/AccountRecovery.jsx";
 import { RoomLobby } from "./components/RoomScreens.jsx";
 import { createRoom } from "./lib/mockApi.js";
+import { getUserId, getDisplayName, setDisplayName as persistDisplayName } from "./lib/identity.js";
 
 export default function App() {
-  const [view, setView] = useState("home"); // home | predict | live | result | room
+  const [view, setView] = useState("home"); // home | predict | live | result | room | leaderboard
   const [selectedMatch, setSelectedMatch] = useState(null);
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayNameState] = useState(getDisplayName());
   const [predictionText, setPredictionText] = useState("");
   const [predictionId, setPredictionId] = useState(null);
   const [inviteCode, setInviteCode] = useState(null);
+  const [resultAccuracy, setResultAccuracy] = useState(null);
+  const [showRecovery, setShowRecovery] = useState(false);
+
+  const [leaderboardMatch, setLeaderboardMatch] = useState(null);
+  const [leaderboardReturn, setLeaderboardReturn] = useState("home");
+
+  // Wraps React state with persistence to localStorage via identity.js,
+  // so a display name survives a page refresh instead of resetting every time.
+  function updateDisplayName(name) {
+    setDisplayNameState(name);
+    persistDisplayName(name);
+  }
 
   function goHome() {
     setView("home");
@@ -21,6 +36,7 @@ export default function App() {
     setPredictionText("");
     setPredictionId(null);
     setInviteCode(null);
+    setResultAccuracy(null);
   }
 
   function selectMatch(match) {
@@ -34,31 +50,38 @@ export default function App() {
   }
 
   async function handleCreateRoom() {
-    const res = await createRoom(selectedMatch.id, "local-demo-user", displayName);
+    const res = await createRoom(selectedMatch.id, getUserId(), displayName);
     setInviteCode(res.inviteCode);
     setView("room");
   }
 
-  // Create a room directly from Home, before any prediction exists yet.
-  // Sets the match, creates the room, and drops the user into the prediction
-  // screen with the invite code already attached.
   async function handleCreateRoomFromHome(match) {
     setSelectedMatch(match);
-    const res = await createRoom(match.id, "local-demo-user", displayName);
+    const res = await createRoom(match.id, getUserId(), displayName);
     setInviteCode(res.inviteCode);
     setView("predict");
   }
 
   async function handleJoinRoom(code, name, match) {
-    setDisplayName(name);
+    updateDisplayName(name);
     setInviteCode(code);
     setSelectedMatch(match);
     setView("predict");
   }
 
+  function handleViewLeaderboard(match, returnView) {
+    setLeaderboardMatch(match);
+    setLeaderboardReturn(returnView || "home");
+    setView("leaderboard");
+  }
+
   return (
     <div className="min-h-screen bg-ink text-paper font-body relative overflow-hidden">
-      <TopBar view={view} onLogoClick={goHome} />
+      <TopBar
+        view={view}
+        onLogoClick={goHome}
+        onOpenRecovery={function () { setShowRecovery(true); }}
+      />
 
       <main className="relative z-10 max-w-2xl mx-auto px-5 pb-24">
         {view === "home" && (
@@ -66,6 +89,7 @@ export default function App() {
             onSelectMatch={selectMatch}
             onJoinRoom={handleJoinRoom}
             onCreateRoomFromHome={handleCreateRoomFromHome}
+            onViewLeaderboard={function (m) { handleViewLeaderboard(m, "home"); }}
           />
         )}
 
@@ -73,7 +97,7 @@ export default function App() {
           <PredictionScreen
             match={selectedMatch}
             displayName={displayName}
-            setDisplayName={setDisplayName}
+            setDisplayName={updateDisplayName}
             onBack={goHome}
             onSubmitted={onPredictionSubmitted}
             onGoLive={function () { setView("live"); }}
@@ -108,9 +132,26 @@ export default function App() {
             displayName={displayName}
             inviteCode={inviteCode}
             onDone={goHome}
+            onResultLoaded={function (pct) { setResultAccuracy(pct); }}
+            onViewGlobalLeaderboard={function () { handleViewLeaderboard(selectedMatch, "result"); }}
+          />
+        )}
+
+        {view === "leaderboard" && leaderboardMatch && (
+          <GlobalLeaderboard
+            match={leaderboardMatch}
+            displayName={displayName}
+            yourAccuracy={leaderboardReturn === "result" ? resultAccuracy : null}
+            yourPredictionText={leaderboardReturn === "result" ? predictionText : null}
+            onBack={function () { setView(leaderboardReturn); }}
+            onCallMatch={function () { selectMatch(leaderboardMatch); }}
           />
         )}
       </main>
+
+      {showRecovery && (
+        <AccountRecovery onClose={function () { setShowRecovery(false); }} />
+      )}
     </div>
   );
 }
@@ -129,12 +170,21 @@ function TopBar(props) {
           </span>
         </button>
 
-        {props.view === "live" && (
-          <div className="flex items-center gap-1.5 text-red text-xs font-mono uppercase tracking-wider">
-            <Radio className="w-3.5 h-3.5 animate-pulse-live" />
-            Live
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          {props.view === "live" && (
+            <div className="flex items-center gap-1.5 text-red text-xs font-mono uppercase tracking-wider">
+              <Radio className="w-3.5 h-3.5 animate-pulse-live" />
+              Live
+            </div>
+          )}
+          <button
+            onClick={props.onOpenRecovery}
+            aria-label="Recover your calls"
+            className="text-slate-faint hover:text-gold transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </header>
   );
