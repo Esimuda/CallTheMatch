@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -6,7 +6,6 @@ import axios from "axios";
 
 import * as db from "./lib/db.js";
 import { extractPrediction } from "./lib/prediction-extractor.js";
-import { generateNarrative } from "./lib/narrative.js";
 import { scorePrediction, buildComparisonSummary } from "./lib/scoring.js";
 import { createInitialState, parseScoreUpdate } from "./lib/scores-parser.js";
 import { isFinished } from "./lib/game-phase.js";

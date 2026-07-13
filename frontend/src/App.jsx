@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Radio, Mail } from "lucide-react";
 import MatchList from "./components/MatchList.jsx";
 import PredictionScreen from "./components/PredictionScreen.jsx";
 import LiveMatch from "./components/LiveMatch.jsx";
+import WaitingScreen from "./components/WaitingScreen.jsx";
 import ResultScreen from "./components/ResultScreen.jsx";
 import GlobalLeaderboard from "./components/GlobalLeaderboard.jsx";
 import AccountRecovery from "./components/AccountRecovery.jsx";
@@ -10,8 +11,11 @@ import { RoomLobby } from "./components/RoomScreens.jsx";
 import { createRoom } from "./lib/api.js";
 import { getUserId, getDisplayName, setDisplayName as persistDisplayName } from "./lib/identity.js";
 
+const FINISHED_PHASES = ["F", "FET", "FPE"];
+const NOT_STARTED_PHASES = ["NS"];
+
 export default function App() {
-  const [view, setView] = useState("home"); // home | predict | live | result | room | leaderboard
+  const [view, setView] = useState("home"); // home | predict | waiting | live | result | room | leaderboard
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [displayName, setDisplayNameState] = useState(getDisplayName());
   const [predictionText, setPredictionText] = useState("");
@@ -23,8 +27,6 @@ export default function App() {
   const [leaderboardMatch, setLeaderboardMatch] = useState(null);
   const [leaderboardReturn, setLeaderboardReturn] = useState("home");
 
-  // Wraps React state with persistence to localStorage via identity.js,
-  // so a display name survives a page refresh instead of resetting every time.
   function updateDisplayName(name) {
     setDisplayNameState(name);
     persistDisplayName(name);
@@ -47,6 +49,24 @@ export default function App() {
   function onPredictionSubmitted(id, text) {
     setPredictionId(id);
     setPredictionText(text);
+  }
+
+  // Decides where to go after "Watch Live" is tapped, based on the match's
+  // ACTUAL current phase - not a blind jump to the live view every time.
+  // NS (not started) -> waiting screen. Finished -> straight to results
+  // (this is what makes testing against already-concluded matches work).
+  // Anything else (H1/HT/H2/ET*/PE) -> the real live view.
+  function goWatchOrWait() {
+    if (!selectedMatch) return;
+    const phase = selectedMatch.gamePhase;
+
+    if (FINISHED_PHASES.includes(phase)) {
+      setView("result");
+    } else if (NOT_STARTED_PHASES.includes(phase)) {
+      setView("waiting");
+    } else {
+      setView("live");
+    }
   }
 
   async function handleCreateRoom() {
@@ -100,7 +120,7 @@ export default function App() {
             setDisplayName={updateDisplayName}
             onBack={goHome}
             onSubmitted={onPredictionSubmitted}
-            onGoLive={function () { setView("live"); }}
+            onGoLive={goWatchOrWait}
             onCreateRoom={handleCreateRoom}
             inviteCode={inviteCode}
             onGoToRoom={function () { setView("room"); }}
@@ -111,7 +131,15 @@ export default function App() {
           <RoomLobby
             inviteCode={inviteCode}
             onBack={function () { setView("predict"); }}
-            onWatchLive={function () { setView("live"); }}
+            onWatchLive={goWatchOrWait}
+          />
+        )}
+
+        {view === "waiting" && selectedMatch && (
+          <WaitingScreen
+            match={selectedMatch}
+            predictionText={predictionText}
+            onDone={goHome}
           />
         )}
 

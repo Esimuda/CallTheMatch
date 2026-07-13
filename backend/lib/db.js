@@ -175,3 +175,13 @@ export async function getMatchLeaderboard(matchId, requestingUserId) {
     beatPct,
   };
 }
+
+export async function updateMatchState(matchId, updates) {
+  const { data, error } = await supabase
+    .from("matches")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", matchId)
+    .select();
+  if (error) throw error;
+  return data[0];
+}
