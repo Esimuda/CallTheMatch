@@ -1,11 +1,14 @@
 ﻿import "dotenv/config";
-import { handleMatchFinished } from "./lib/match-finish.js";
-import { saveOddsHistory } from "./lib/odds-store.js";
+import { generateNarratives } from "./lib/narrative.js";
+import { scorePrediction, buildComparisonSummary } from "./lib/scoring.js";
 
-const TEST_FIXTURE_ID = 99999999; // fake ID, isolated from real data
+// Exercises the two pure pieces of the match-finish flow (narrative
+// generation + prediction scoring) with fake data, without touching the
+// database. finalizeMatch itself persists to Supabase, so it needs a
+// real seeded match - this test stays fully isolated.
 
 const fakeFinishedState = {
-  fixtureId: TEST_FIXTURE_ID,
+  fixtureId: 99999999,
   gamePhase: "F",
   gamePhaseName: "Finished (Full-Time)",
   scoreHome: 2,
@@ -23,7 +26,7 @@ const fakeFinishedState = {
 };
 
 const fakeOddsHistory = {
-  fixtureId: TEST_FIXTURE_ID,
+  fixtureId: 99999999,
   snapshots: [],
   flaggedMoments: [
     { caption: "Market shifted toward Morocco (61.1% -> 38.0%) after the opener" },
@@ -31,20 +34,31 @@ const fakeOddsHistory = {
   ],
 };
 
-async function main() {
-  saveOddsHistory(TEST_FIXTURE_ID, fakeOddsHistory);
+const fakeExtractedPrediction = {
+  winner: "home",
+  scoreHome: 2,
+  scoreAway: 0,
+  mentionedEvents: ["red_card"],
+};
 
-  console.log("Simulating full match-finish flow with fake data...\n");
-  const result = await handleMatchFinished(
-    TEST_FIXTURE_ID,
-    fakeFinishedState,
-    fakeOddsHistory,
-    "France",
-    "Morocco"
-  );
+async function main() {
+  console.log("Simulating match-finish narrative + scoring with fake data...\n");
+
+  const scoreResult = scorePrediction(fakeExtractedPrediction, fakeFinishedState);
+  const summary = buildComparisonSummary(fakeExtractedPrediction, fakeFinishedState, scoreResult);
+  console.log("=== SCORING ===");
+  console.log(`Accuracy: ${scoreResult.accuracyPct}%`);
+  console.log("Breakdown:", JSON.stringify(scoreResult.scoreBreakdown));
+  console.log(`Summary: ${summary}\n`);
+
+  const narratives = await generateNarratives(fakeFinishedState, fakeOddsHistory, "France", "Morocco");
+  console.log("=== FUN RECAP ===\n");
+  console.log(narratives.funRecap);
+  console.log("\n=== MARKET NARRATIVE ===\n");
+  console.log(narratives.marketNarrative);
 
   console.log("\n\n=== TEST COMPLETE ===");
-  console.log("Narrative record returned:", result.fixtureId, result.modelUsed, result.generatedAt);
+  console.log("Generated:", narratives.modelUsed, narratives.generatedAt);
 }
 
 main().catch((err) => {

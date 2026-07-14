@@ -38,6 +38,16 @@ export async function updatePredictionResult(id, updates) {
   return data[0];
 }
 
+export async function getUnscoredPredictionsByMatch(matchId) {
+  const { data, error } = await supabase
+    .from("predictions")
+    .select("*")
+    .eq("match_id", matchId)
+    .is("accuracy_pct", null);
+  if (error) throw error;
+  return data;
+}
+
 // --- Odds ---
 export async function saveOddsSnapshot(snapshot) {
   const { error } = await supabase.from("odds_snapshots").insert(snapshot);
@@ -50,6 +60,18 @@ export async function getOddsHistory(matchId) {
     .select("*")
     .eq("match_id", matchId)
     .order("ts", { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function getLatestOddsSnapshot(matchId) {
+  const { data, error } = await supabase
+    .from("odds_snapshots")
+    .select("*")
+    .eq("match_id", matchId)
+    .order("ts", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -101,7 +123,7 @@ export async function addRoomMember(roomId, userId) {
   if (error) throw error;
 }
 
-export async function getRoomMembersWithPredictions(roomId, matchId) {
+export async function getRoomMembersWithPredictions(roomId, matchId, requestingUserId = null) {
   const { data: members, error: membersError } = await supabase
     .from("room_members")
     .select("user_id, users(display_name)")
@@ -124,6 +146,7 @@ export async function getRoomMembersWithPredictions(roomId, matchId) {
       displayName: m.users?.display_name || "Unknown",
       accuracyPct: pred ? pred.accuracy_pct : null,
       predictionText: pred ? pred.prediction_text : null,
+      isYou: requestingUserId ? m.user_id === requestingUserId : false,
     };
   });
 }
@@ -163,7 +186,9 @@ export async function getMatchLeaderboard(matchId, requestingUserId) {
     if (idx !== -1) {
       yourRank = idx + 1;
       const total = entries.length;
-      beatPct = total > 1 ? Math.round(((total - yourRank) / (total - 1)) * 100) : 100;
+      // With no other predictors there's nobody to compare against - leave
+      // beatPct null rather than claiming "better than 100% of everyone".
+      beatPct = total > 1 ? Math.round(((total - yourRank) / (total - 1)) * 100) : null;
     }
   }
 

@@ -1,30 +1,22 @@
 ﻿import "dotenv/config";
 import axios from "axios";
-import fs from "fs";
 import { createInitialState, parseScoreUpdate } from "./lib/scores-parser.js";
 import { isFinished } from "./lib/game-phase.js";
-import { generateNarratives } from "./lib/narrative.js";
+import { finalizeMatch } from "./lib/match-finish.js";
 import * as db from "./lib/db.js";
-
-const apiOrigin = "https://txline-dev.txodds.com";
-const apiBaseUrl = `${apiOrigin}/api`;
-
-const credentials = JSON.parse(fs.readFileSync("./txline-credentials.json", "utf8"));
-const headers = {
-  Authorization: `Bearer ${credentials.jwt}`,
-  "X-Api-Token": credentials.apiToken,
-};
+import { apiBaseUrl, txlineHeaders } from "./lib/txline.js";
 
 // One-shot sync: brings every seeded match's phase/score up to date with
 // reality right now, regardless of whether poll-worker.js has ever been run
-// against it. Safe to run anytime - existing narratives are not regenerated.
+// against it. Safe to run anytime - existing narratives are not regenerated
+// and already-scored predictions are left alone.
 async function syncMatch(match) {
   console.log(`\nSyncing ${match.home_team} vs ${match.away_team} (${match.id})...`);
 
   let rawMessages;
   try {
     const res = await axios.get(`${apiBaseUrl}/scores/snapshot/${match.id}`, {
-      headers,
+      headers: txlineHeaders(),
       params: { Ts: 0 },
     });
     rawMessages = res.data;
@@ -41,29 +33,18 @@ async function syncMatch(match) {
   let state = createInitialState(match.id);
   state = parseScoreUpdate(state, rawMessages);
 
+  console.log(`  Phase: ${state.gamePhase} | Score: ${state.scoreHome}-${state.scoreAway}`);
+
+  if (isFinished(state.gamePhase)) {
+    await finalizeMatch(match, state);
+    return;
+  }
+
   await db.updateMatchState(match.id, {
     game_phase: state.gamePhase,
     score_home: state.scoreHome,
     score_away: state.scoreAway,
   });
-
-  console.log(`  Phase: ${state.gamePhase} | Score: ${state.scoreHome}-${state.scoreAway}`);
-
-  if (isFinished(state.gamePhase)) {
-    const existingNarrative = await db.getNarrative(match.id);
-    if (existingNarrative) {
-      console.log(`  Narrative already exists, skipping regeneration.`);
-      return;
-    }
-
-    console.log(`  Match finished, generating narratives...`);
-    const narratives = await generateNarratives(state, { flaggedMoments: [] }, match.home_team, match.away_team);
-    await db.saveNarrative(match.id, {
-      fun_recap: narratives.funRecap,
-      market_narrative: narratives.marketNarrative,
-    });
-    console.log(`  Narratives saved.`);
-  }
 }
 
 async function main() {

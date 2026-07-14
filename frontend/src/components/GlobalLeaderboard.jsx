@@ -23,6 +23,10 @@ export default function GlobalLeaderboard(props) {
         setData(res);
         setLoading(false);
       }
+    }).catch(function () {
+      if (active) {
+        setLoading(false);
+      }
     });
     return function () { active = false; };
   }, [match.id, props.yourAccuracy]);
@@ -32,6 +36,18 @@ export default function GlobalLeaderboard(props) {
       <div className="pt-16 flex flex-col items-center text-center">
         <div className="w-10 h-10 rounded-full border-2 border-line border-t-gold animate-spin"></div>
         <p className="text-slate text-sm font-mono mt-4">Pulling the leaderboard...</p>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="pt-16 flex flex-col items-center text-center px-4">
+        <p className="text-paper text-sm font-medium mb-2">Couldn't load the leaderboard.</p>
+        <button onClick={props.onBack} className="flex items-center gap-1.5 text-slate hover:text-paper text-sm transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
       </div>
     );
   }
@@ -70,9 +86,11 @@ export default function GlobalLeaderboard(props) {
           <p className="font-display font-black text-paper text-2xl leading-tight">
             Rank #{data.yourRank}
           </p>
-          <p className="text-gold text-sm mt-1">
-            Better than {data.beatPct}% of everyone who called this match
-          </p>
+          {data.beatPct !== null && (
+            <p className="text-gold text-sm mt-1">
+              Better than {data.beatPct}% of everyone who called this match
+            </p>
+          )}
         </div>
       )}
 
@@ -101,7 +119,7 @@ export default function GlobalLeaderboard(props) {
 
       <div className="flex flex-col gap-2">
         {rest.map(function (m, i) {
-          return <LeaderRow key={m.displayName} member={m} rank={i + 4} delayMs={i * 60} />;
+          return <LeaderRow key={m.displayName + "-" + i} member={m} rank={i + 4} delayMs={i * 60} />;
         })}
       </div>
     </div>

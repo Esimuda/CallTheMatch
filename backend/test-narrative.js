@@ -1,5 +1,5 @@
 ﻿import "dotenv/config";
-import { generateNarrative } from "./lib/narrative.js";
+import { generateNarratives } from "./lib/narrative.js";
 
 const fakeMatchState = {
   scoreHome: 2,
@@ -20,10 +20,12 @@ const fakeOddsHistory = {
 };
 
 async function main() {
-  console.log("Generating test narrative...\n");
-  const result = await generateNarrative(fakeMatchState, fakeOddsHistory, "France", "Morocco");
-  console.log("=== NARRATIVE ===\n");
-  console.log(result.narrativeText);
+  console.log("Generating test narratives...\n");
+  const result = await generateNarratives(fakeMatchState, fakeOddsHistory, "France", "Morocco");
+  console.log("=== FUN RECAP ===\n");
+  console.log(result.funRecap);
+  console.log("\n=== MARKET NARRATIVE ===\n");
+  console.log(result.marketNarrative);
   console.log("\n=== METADATA ===");
   console.log("Generated at:", result.generatedAt);
   console.log("Model:", result.modelUsed);

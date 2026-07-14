@@ -57,8 +57,11 @@ export async function createRoom(matchId, createdByUserId, createdByName) {
 }
 
 // GET /api/rooms/:code
-export async function fetchRoom(code) {
-  return get(`/api/rooms/${code}`);
+// Sends the local userId (unless overridden) so the server flags your own
+// row with isYou - the frontend never has to guess by display name.
+export async function fetchRoom(code, userId = getUserId()) {
+  const qs = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  return get(`/api/rooms/${code}${qs}`);
 }
 
 // GET /api/matches/:id/leaderboard

@@ -1,160 +1,166 @@
 ﻿import "dotenv/config";
 import axios from "axios";
-import fs from "fs";
 import { createInitialState, parseScoreUpdate } from "./lib/scores-parser.js";
 import { isFinished, isDead } from "./lib/game-phase.js";
 import { computeImpliedPct, isSignificantMove, buildMoveCaption } from "./lib/odds-detector.js";
-import { loadState, saveState } from "./lib/state-store.js";
-import { loadOddsHistory, saveOddsHistory } from "./lib/odds-store.js";
-import { generateNarrative } from "./lib/narrative.js";
+import { finalizeMatch } from "./lib/match-finish.js";
+import * as db from "./lib/db.js";
+import { apiBaseUrl, txlineHeaders } from "./lib/txline.js";
 
-const apiOrigin = "https://txline-dev.txodds.com";
-const apiBaseUrl = `${apiOrigin}/api`;
-
-const credentials = JSON.parse(fs.readFileSync("./txline-credentials.json", "utf8"));
-const { jwt, apiToken } = credentials;
-
-const headers = {
-  Authorization: `Bearer ${jwt}`,
-  "X-Api-Token": apiToken,
-};
-
-// --- Config ---
-const FIXTURE_ID = 18209181; // France vs Morocco
-const HOME_TEAM = "France";
-const AWAY_TEAM = "Morocco";
 const POLL_INTERVAL_MS = 30000; // 30 seconds
+// Don't poll fixtures that are still far from kickoff.
+const PREMATCH_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
-let pollTimer = null;
+// Parser state per fixture, in memory only. We fetch the full score history
+// (Ts: 0) every poll, so a restart just replays all messages and rebuilds
+// identical state - no need to persist it.
+const stateByFixture = new Map();
 
 async function fetchScores(fixtureId) {
-  const res = await axios.get(`${apiBaseUrl}/scores/snapshot/${fixtureId}`, { headers });
+  const res = await axios.get(`${apiBaseUrl}/scores/snapshot/${fixtureId}`, {
+    headers: txlineHeaders(),
+    params: { Ts: 0 },
+  });
   return res.data;
 }
 
 async function fetchOdds(fixtureId) {
-  const res = await axios.get(`${apiBaseUrl}/odds/snapshot/${fixtureId}`, { headers });
+  const res = await axios.get(`${apiBaseUrl}/odds/snapshot/${fixtureId}`, {
+    headers: txlineHeaders(),
+  });
   return res.data;
 }
 
-function processOdds(fixtureId, oddsPayloads) {
-  const history = loadOddsHistory(fixtureId);
+function snapshotToImpliedPct(row) {
+  if (!row) return null;
+  return {
+    homeWinPct: row.home_win_pct === null ? null : parseFloat(row.home_win_pct),
+    drawPct: row.draw_pct === null ? null : parseFloat(row.draw_pct),
+    awayWinPct: row.away_win_pct === null ? null : parseFloat(row.away_win_pct),
+    ts: Number(row.ts),
+  };
+}
 
+async function processOdds(match, state) {
+  const oddsPayloads = await fetchOdds(match.id);
   const mainMarket = oddsPayloads.find((o) => o.SuperOddsType === "1X2_PARTICIPANT_RESULT");
-  if (!mainMarket) return history;
+  if (!mainMarket) return;
 
   const current = computeImpliedPct(mainMarket);
-  if (!current) return history;
+  if (!current) return;
 
-  const previous = history.snapshots.length > 0
-    ? history.snapshots[history.snapshots.length - 1]
+  const previous = snapshotToImpliedPct(await db.getLatestOddsSnapshot(match.id));
+
+  // The odds snapshot endpoint returns the latest prices on every poll; only
+  // store a new row when the feed actually published an update.
+  if (previous && previous.ts === current.ts) return;
+
+  const significant = isSignificantMove(previous, current);
+  const caption = significant
+    ? buildMoveCaption(previous, current, match.home_team, match.away_team)
     : null;
 
-  history.snapshots.push(current);
+  await db.saveOddsSnapshot({
+    match_id: match.id,
+    minute: state.clockSeconds !== null ? Math.round(state.clockSeconds / 60) : null,
+    home_win_pct: current.homeWinPct,
+    draw_pct: current.drawPct,
+    away_win_pct: current.awayWinPct,
+    ts: current.ts,
+    is_significant: significant,
+    caption,
+  });
 
-  if (isSignificantMove(previous, current)) {
-    const caption = buildMoveCaption(previous, current, HOME_TEAM, AWAY_TEAM);
-    history.flaggedMoments.push({ ...current, caption });
-    console.log(`[ODDS] Significant move flagged: ${caption}`);
+  if (significant) {
+    console.log(`  [ODDS] Significant move flagged: ${caption}`);
   }
-
-  saveOddsHistory(fixtureId, history);
-  return history;
 }
 
-async function handleMatchFinished(state) {
-  console.log(`\n=== MATCH FINISHED (${state.gamePhase}) ===`);
-  console.log(`Final score: ${HOME_TEAM} ${state.scoreHome} - ${state.scoreAway} ${AWAY_TEAM}`);
-
-  const oddsHistory = loadOddsHistory(FIXTURE_ID);
-
-  console.log("\nGenerating narrative...");
-  try {
-    const narrative = await generateNarrative(state, oddsHistory, HOME_TEAM, AWAY_TEAM);
-
-    const narrativeRecord = {
-      fixtureId: FIXTURE_ID,
-      ...narrative,
-    };
-
-    fs.writeFileSync(
-      `./data/narrative-${FIXTURE_ID}.json`,
-      JSON.stringify(narrativeRecord, null, 2)
-    );
-
-    console.log("\n=== NARRATIVE ===\n");
-    console.log(narrative.narrativeText);
-    console.log(`\nSaved to data/narrative-${FIXTURE_ID}.json`);
-  } catch (err) {
-    console.error("Narrative generation failed:", err.response?.data || err.message);
-  }
-
-  // Scoring (prediction accuracy) plugs in here next, once we build that module.
-  console.log("\n[TODO] Trigger prediction scoring here");
-}
-
-async function pollOnce() {
-  const timestamp = new Date().toISOString();
-  console.log(`\n--- Poll at ${timestamp} ---`);
-
-  let state = loadState(FIXTURE_ID, createInitialState);
+async function pollMatch(match) {
+  let state = stateByFixture.get(match.id) || createInitialState(match.id);
   const previousPhase = state.gamePhase;
 
   try {
-    const rawMessages = await fetchScores(FIXTURE_ID);
+    const rawMessages = await fetchScores(match.id);
     state = parseScoreUpdate(state, rawMessages);
-    saveState(FIXTURE_ID, state);
-
-    console.log(`[SCORES] Phase: ${state.gamePhase} (${state.gamePhaseName}) | Score: ${state.scoreHome}-${state.scoreAway} | Events: ${state.events.length}`);
-
-    if (state.gamePhase !== previousPhase) {
-      console.log(`[PHASE CHANGE] ${previousPhase} -> ${state.gamePhase}`);
-    }
+    stateByFixture.set(match.id, state);
   } catch (err) {
-    console.error("[SCORES] Fetch failed:", err.response?.status || err.message);
+    console.error(`  [SCORES] Fetch failed for ${match.id}:`, err.response?.status || err.message);
+    return;
   }
 
-  if (!isFinished(state.gamePhase) && !isDead(state.gamePhase)) {
-    try {
-      const oddsPayloads = await fetchOdds(FIXTURE_ID);
-      processOdds(FIXTURE_ID, oddsPayloads);
-    } catch (err) {
-      console.error("[ODDS] Fetch failed:", err.response?.status || err.message);
-    }
+  console.log(`  ${match.home_team} vs ${match.away_team}: ${state.gamePhase} | ${state.scoreHome}-${state.scoreAway}`);
+
+  if (state.gamePhase !== previousPhase) {
+    console.log(`  [PHASE CHANGE] ${previousPhase} -> ${state.gamePhase}`);
   }
 
   if (isFinished(state.gamePhase)) {
-    stopPolling();
-    await handleMatchFinished(state);
+    await finalizeMatch(match, state);
     return;
   }
 
   if (isDead(state.gamePhase)) {
-    console.log(`\n=== MATCH ${state.gamePhase} — stopping poll, no scoring applicable ===`);
-    stopPolling();
+    console.log(`  Match is ${state.gamePhase} - no scoring applicable.`);
+    await db.updateMatchState(match.id, {
+      game_phase: state.gamePhase,
+      score_home: state.scoreHome,
+      score_away: state.scoreAway,
+    });
     return;
   }
-}
 
-function startPolling() {
-  console.log(`Starting poll worker for fixture ${FIXTURE_ID} (${HOME_TEAM} vs ${AWAY_TEAM})`);
-  console.log(`Polling every ${POLL_INTERVAL_MS / 1000}s. Press Ctrl+C to stop.\n`);
-  pollOnce();
-  pollTimer = setInterval(pollOnce, POLL_INTERVAL_MS);
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
+  if (state.gamePhase !== match.game_phase ||
+      state.scoreHome !== match.score_home ||
+      state.scoreAway !== match.score_away) {
+    await db.updateMatchState(match.id, {
+      game_phase: state.gamePhase,
+      score_home: state.scoreHome,
+      score_away: state.scoreAway,
+    });
   }
-  console.log("\nPolling stopped.");
+
+  try {
+    await processOdds(match, state);
+  } catch (err) {
+    console.error(`  [ODDS] Fetch failed for ${match.id}:`, err.response?.status || err.message);
+  }
 }
+
+function shouldPoll(match) {
+  if (isFinished(match.game_phase) || isDead(match.game_phase)) return false;
+  if (match.game_phase !== "NS") return true;
+  return new Date(match.kickoff_time).getTime() - Date.now() <= PREMATCH_WINDOW_MS;
+}
+
+let polling = false;
+
+async function pollOnce() {
+  if (polling) return; // previous cycle still running
+  polling = true;
+
+  try {
+    const matches = await db.getMatches();
+    const active = matches.filter(shouldPoll);
+
+    console.log(`\n--- Poll at ${new Date().toISOString()} (${active.length} active match(es)) ---`);
+
+    for (const match of active) {
+      await pollMatch(match);
+    }
+  } catch (err) {
+    console.error("Poll cycle failed:", err.response?.data || err.message);
+  } finally {
+    polling = false;
+  }
+}
+
+console.log(`Starting poll worker. Polling every ${POLL_INTERVAL_MS / 1000}s. Press Ctrl+C to stop.`);
+pollOnce();
+const pollTimer = setInterval(pollOnce, POLL_INTERVAL_MS);
 
 process.on("SIGINT", () => {
   console.log("\nReceived interrupt, stopping...");
-  stopPolling();
+  clearInterval(pollTimer);
   process.exit(0);
 });
-
-startPolling();

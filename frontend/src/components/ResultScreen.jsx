@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
-import { ArrowLeft, Trophy, Share2, Check, X, Home, Download, ChevronDown, BarChart3, Users, Crown } from "lucide-react";
+import { ArrowLeft, Trophy, Share2, Check, X, Home, Download, ChevronDown, BarChart3, Users, Crown, AlertTriangle, RotateCw } from "lucide-react";
 import { fetchNarrative, fetchPredictionResult, fetchRoom } from "../lib/api.js";
+import { getUserId } from "../lib/identity.js";
 
 const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
 function flagUrl(code, width) {
@@ -13,6 +14,8 @@ export default function ResultScreen(props) {
   const [narrative, setNarrative] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [groupDownloading, setGroupDownloading] = useState(false);
@@ -25,32 +28,44 @@ export default function ResultScreen(props) {
 
   useEffect(function () {
     let active = true;
+    setLoading(true);
+    setError(null);
+
     Promise.all([
-      fetchNarrative(match.id),
-      fetchPredictionResult(props.predictionId, props.predictionText),
+      // The narrative is a nice-to-have: if it isn't generated yet, show the
+      // result without the story instead of failing the whole screen.
+      fetchNarrative(match.id).catch(function () { return null; }),
+      fetchPredictionResult(props.predictionId),
     ]).then(function (vals) {
       if (!active) return;
       setNarrative(vals[0]);
       setResult(vals[1]);
       setLoading(false);
-      setShowConfetti(true);
+      setShowConfetti(vals[1].accuracyPct >= 50);
 
       if (props.onResultLoaded) {
         props.onResultLoaded(vals[1].accuracyPct);
       }
 
       if (props.inviteCode) {
-        fetchRoom(props.inviteCode, null).then(function (res) {
+        // The server marks your own row (isYou) - your prediction was just
+        // scored by the result fetch above, so it's included in members.
+        fetchRoom(props.inviteCode, getUserId()).then(function (res) {
           if (!active) return;
-          const you = { displayName: props.displayName || "You", accuracyPct: vals[1].accuracyPct, predictionText: props.predictionText, isYou: true };
-          const combined = res.members.filter(function (m) { return m.accuracyPct !== null; }).concat([you]);
-          combined.sort(function (a, b) { return b.accuracyPct - a.accuracyPct; });
-          setRoomMembers(combined);
+          const scored = res.members.filter(function (m) { return m.accuracyPct !== null; });
+          scored.sort(function (a, b) { return b.accuracyPct - a.accuracyPct; });
+          if (scored.length > 0) setRoomMembers(scored);
+        }).catch(function () {
+          // Room card is optional - the rest of the result screen still works.
         });
       }
+    }).catch(function (err) {
+      if (!active) return;
+      setError(err.message || "Could not load your result.");
+      setLoading(false);
     });
     return function () { active = false; };
-  }, [match.id, props.predictionId]);
+  }, [match.id, props.predictionId, retryKey]);
 
   useEffect(function () {
     if (!result) return;
@@ -115,6 +130,34 @@ export default function ResultScreen(props) {
     );
   }
 
+  if (error) {
+    return (
+      <div className="pt-16 flex flex-col items-center text-center px-4">
+        <div className="w-16 h-16 rounded-full bg-red/10 flex items-center justify-center mb-4">
+          <AlertTriangle className="w-8 h-8 text-red" />
+        </div>
+        <h2 className="font-display font-bold text-xl text-paper mb-2">Couldn't score your call</h2>
+        <p className="text-slate text-sm max-w-sm mb-6">{error}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={function () { setRetryKey(retryKey + 1); }}
+            className="flex items-center gap-2 bg-gold hover:bg-gold-bright text-ink text-sm font-semibold rounded-xl px-5 py-3 transition-colors"
+          >
+            <RotateCw className="w-4 h-4" />
+            Try again
+          </button>
+          <button
+            onClick={props.onDone}
+            className="flex items-center gap-2 bg-surface border border-line hover:border-pitch-bright text-paper text-sm rounded-xl px-5 py-3 transition-colors"
+          >
+            <Home className="w-4 h-4" />
+            Back to fixtures
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="pt-6 animate-rise pb-6 relative">
       {showConfetti && <Confetti />}
@@ -127,17 +170,25 @@ export default function ResultScreen(props) {
         <img src={flagUrl(match.awayCode, 160)} alt={match.awayTeam} className="w-10 h-10 rounded-full object-cover shadow-md" />
       </div>
 
-      <AccuracyBadge count={count} />
+      <AccuracyBadge count={count} accuracyPct={result.accuracyPct} />
 
-      <div className="mt-8 bg-surface border border-gold/30 rounded-2xl p-5">
-        <p className="text-gold text-xs font-mono uppercase tracking-wider mb-3">The story</p>
-        <p className="text-paper text-[1.05rem] leading-relaxed">{narrative.funRecap}</p>
-      </div>
+      {narrative && narrative.funRecap && (
+        <div className="mt-8 bg-surface border border-gold/30 rounded-2xl p-5">
+          <p className="text-gold text-xs font-mono uppercase tracking-wider mb-3">The story</p>
+          <p className="text-paper text-[1.05rem] leading-relaxed">{narrative.funRecap}</p>
+        </div>
+      )}
+
+      <p className="text-center text-gold font-display font-semibold text-base mt-4 px-4">{result.celebrationLine}</p>
 
       <ComparisonDiptych
         original={result.originalPredictionText}
         summary={result.comparisonSummary}
         breakdown={result.scoreBreakdown}
+        match={match}
+        predictedWinner={result.predictedWinner}
+        predictedScoreHome={result.predictedScoreHome}
+        predictedScoreAway={result.predictedScoreAway}
       />
 
       <GlobalLeaderboardTeaser onView={props.onViewGlobalLeaderboard} />
@@ -153,21 +204,25 @@ export default function ResultScreen(props) {
         />
       )}
 
-      <button
-        onClick={function () { setShowData(!showData); }}
-        className="mt-6 w-full flex items-center justify-between text-slate hover:text-paper text-sm font-mono uppercase tracking-wider px-1 transition-colors"
-      >
-        <span className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4" />
-          For the data nerds
-        </span>
-        <ChevronDown className={"w-4 h-4 transition-transform " + (showData ? "rotate-180" : "")} />
-      </button>
+      {narrative && narrative.marketNarrative && (
+        <React.Fragment>
+          <button
+            onClick={function () { setShowData(!showData); }}
+            className="mt-6 w-full flex items-center justify-between text-slate hover:text-paper text-sm font-mono uppercase tracking-wider px-1 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              For the data nerds
+            </span>
+            <ChevronDown className={"w-4 h-4 transition-transform " + (showData ? "rotate-180" : "")} />
+          </button>
 
-      {showData && (
-        <div className="mt-3 bg-surface/50 border border-line rounded-2xl p-5 animate-rise">
-          <p className="text-slate text-sm leading-relaxed">{narrative.marketNarrative}</p>
-        </div>
+          {showData && (
+            <div className="mt-3 bg-surface/50 border border-line rounded-2xl p-5 animate-rise">
+              <p className="text-slate text-sm leading-relaxed">{narrative.marketNarrative}</p>
+            </div>
+          )}
+        </React.Fragment>
       )}
 
       <ShareCard
@@ -191,13 +246,20 @@ export default function ResultScreen(props) {
   );
 }
 
+function badgeTier(accuracyPct) {
+  if (accuracyPct >= 70) return { label: "Well called", showTrophy: true, ring: "border-gold animate-glow-pulse", text: "text-gold" };
+  if (accuracyPct >= 40) return { label: "Half right", showTrophy: false, ring: "border-gold/50", text: "text-gold" };
+  return { label: "Tough one", showTrophy: false, ring: "border-line", text: "text-slate" };
+}
+
 function AccuracyBadge(props) {
+  const tier = badgeTier(props.accuracyPct);
   return (
     <div className="flex flex-col items-center py-6">
-      <div className="relative w-44 h-44 rounded-full flex items-center justify-center border-4 border-gold animate-glow-pulse">
+      <div className={"relative w-44 h-44 rounded-full flex items-center justify-center border-4 " + tier.ring}>
         <div className="absolute inset-0 rounded-full bg-gold/5"></div>
         <div className="text-center">
-          <div className="font-display font-black text-6xl text-gold leading-none">
+          <div className={"font-display font-black text-6xl leading-none " + tier.text}>
             {props.count}
             <span className="text-3xl align-top">%</span>
           </div>
@@ -206,12 +268,17 @@ function AccuracyBadge(props) {
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 mt-4 text-gold text-sm font-mono uppercase tracking-wider">
-        <Trophy className="w-4 h-4" />
-        Well called
+      <div className={"flex items-center gap-1.5 mt-4 text-sm font-mono uppercase tracking-wider " + tier.text}>
+        {tier.showTrophy && <Trophy className="w-4 h-4" />}
+        {tier.label}
       </div>
     </div>
   );
+}
+
+function formatEventTag(tag) {
+  const words = tag.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 function ComparisonDiptych(props) {
@@ -219,23 +286,26 @@ function ComparisonDiptych(props) {
   return (
     <div className="mt-8">
       <p className="text-slate text-xs font-mono uppercase tracking-wider mb-3 text-center">
-        What you said vs what happened
+        What you called vs what happened
       </p>
 
       <div className="relative bg-surface border border-line rounded-2xl overflow-hidden">
         <div className="grid grid-cols-1 sm:grid-cols-2">
           <div className="p-5 border-b sm:border-b-0 sm:border-r border-line border-dashed">
-            <p className="text-slate-faint text-[0.65rem] font-mono uppercase tracking-wider mb-2">You said</p>
-            <p className="text-paper text-[0.95rem] leading-relaxed italic">"{props.original}"</p>
+            <p className="text-slate-faint text-[0.65rem] font-mono uppercase tracking-wider mb-2">You called</p>
+            <p className="text-paper text-base font-semibold leading-snug">{formatPredictedCall(props.match, props.predictedWinner, props.predictedScoreHome, props.predictedScoreAway)}</p>
           </div>
           <div className="p-5">
             <p className="text-slate-faint text-[0.65rem] font-mono uppercase tracking-wider mb-2">What happened</p>
             <div className="flex flex-col gap-2">
               <BreakdownRow label="Winner" hit={b.winnerCorrect} />
               <BreakdownRow label="Scoreline" hit={b.scorelineCorrect} />
-              {b.mentionedEventsMissed.length > 0 && (
-                <BreakdownRow label="Red card called" hit={false} />
-              )}
+              {(b.mentionedEventsHit || []).map(function (tag) {
+                return <BreakdownRow key={tag} label={formatEventTag(tag) + " called"} hit={true} />;
+              })}
+              {(b.mentionedEventsMissed || []).map(function (tag) {
+                return <BreakdownRow key={tag} label={formatEventTag(tag) + " called"} hit={false} />;
+              })}
             </div>
           </div>
         </div>
@@ -280,10 +350,11 @@ function GlobalLeaderboardTeaser(props) {
 function GroupResultCard(props) {
   const members = props.members;
   const youIndex = members.findIndex(function (m) { return m.isYou; });
+  const haveYou = youIndex !== -1;
   const yourRank = youIndex + 1;
-  const beatenCount = members.length - 1 - youIndex >= 0 ? members.length - youIndex - 1 : 0;
+  const beatenCount = haveYou ? members.length - youIndex - 1 : 0;
   const totalOthers = members.length - 1;
-  const isTop = yourRank === 1;
+  const isTop = haveYou && yourRank === 1;
 
   return (
     <div className="mt-8">
@@ -301,17 +372,26 @@ function GroupResultCard(props) {
         </div>
 
         <p className="font-display font-black text-paper text-2xl leading-tight mb-1">
-          {isTop
+          {!haveYou
+            ? "How the room called it."
+            : isTop
             ? "Top of the room."
             : "You beat " + beatenCount + " of " + totalOthers + " friends."}
         </p>
-        <p className="text-slate text-sm mb-5">
-          Ranked #{yourRank} of {members.length} on {props.match.homeTeam} vs {props.match.awayTeam}
-        </p>
+        {haveYou && (
+          <p className="text-slate text-sm mb-5">
+            Ranked #{yourRank} of {members.length} on {props.match.homeTeam} vs {props.match.awayTeam}
+          </p>
+        )}
+        {!haveYou && (
+          <p className="text-slate text-sm mb-5">
+            {props.match.homeTeam} vs {props.match.awayTeam}
+          </p>
+        )}
 
         <div className="flex flex-col gap-2">
           {members.map(function (m, i) {
-            return <GroupRow key={m.displayName} member={m} rank={i + 1} />;
+            return <GroupRow key={m.displayName + "-" + i} member={m} rank={i + 1} />;
           })}
         </div>
       </div>
@@ -403,9 +483,12 @@ function ShareCard(props) {
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
             <ShareStat label="Winner" hit={b.winnerCorrect} />
             <ShareStat label="Scoreline" hit={b.scorelineCorrect} />
-            {b.mentionedEventsMissed.length > 0 && (
-              <ShareStat label="Red card" hit={false} />
-            )}
+            {(b.mentionedEventsHit || []).map(function (tag) {
+              return <ShareStat key={tag} label={formatEventTag(tag)} hit={true} />;
+            })}
+            {(b.mentionedEventsMissed || []).map(function (tag) {
+              return <ShareStat key={tag} label={formatEventTag(tag)} hit={false} />;
+            })}
           </div>
         </div>
 

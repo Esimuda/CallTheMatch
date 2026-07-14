@@ -14,9 +14,12 @@ export function RoomLobby(props) {
 
   useEffect(function () {
     let active = true;
-    fetchRoom(props.inviteCode, null).then(function (res) {
+    fetchRoom(props.inviteCode).then(function (res) {
       if (!active) return;
       setMembers(res.members);
+      setLoading(false);
+    }).catch(function () {
+      if (!active) return;
       setLoading(false);
     });
     return function () { active = false; };
@@ -77,7 +80,7 @@ export function RoomLobby(props) {
         {!loading && (
           <div className="flex flex-col gap-2">
             {sorted.map(function (m, i) {
-              return <MemberRow key={m.displayName} member={m} rank={i + 1} delayMs={i * 80} />;
+              return <MemberRow key={m.displayName + "-" + i} member={m} rank={i + 1} delayMs={i * 80} />;
             })}
           </div>
         )}

@@ -1,28 +1,20 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import fs from "fs";
 import axios from "axios";
 
 import * as db from "./lib/db.js";
 import { extractPrediction } from "./lib/prediction-extractor.js";
-import { scorePrediction, buildComparisonSummary } from "./lib/scoring.js";
+import { scorePrediction, buildComparisonSummary, buildCelebrationLine } from "./lib/scoring.js";
 import { createInitialState, parseScoreUpdate } from "./lib/scores-parser.js";
 import { isFinished } from "./lib/game-phase.js";
+import { apiBaseUrl, txlineHeaders } from "./lib/txline.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
-
-const apiOrigin = "https://txline-dev.txodds.com";
-const apiBaseUrl = `${apiOrigin}/api`;
-const credentials = JSON.parse(fs.readFileSync("./txline-credentials.json", "utf8"));
-const txlineHeaders = {
-  Authorization: `Bearer ${credentials.jwt}`,
-  "X-Api-Token": credentials.apiToken,
-};
 
 // --- GET /api/matches ---
 app.get("/api/matches", async (req, res) => {
@@ -55,9 +47,13 @@ app.post("/api/predictions", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    const match = await db.getMatchById(matchId).catch(() => null);
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
     await db.upsertUser(userId, displayName);
 
-    const match = await db.getMatchById(matchId);
     const extracted = await extractPrediction(predictionText, match.home_team, match.away_team);
 
     const prediction = await db.createPrediction({
@@ -155,6 +151,7 @@ app.get("/api/predictions/:id/result", async (req, res) => {
         predictedWinner: prediction.extracted_winner,
         predictedScoreHome: prediction.extracted_score_home,
         predictedScoreAway: prediction.extracted_score_away,
+        celebrationLine: buildCelebrationLine(prediction.accuracy_pct),
         accuracyPct: prediction.accuracy_pct,
         comparisonSummary: prediction.comparison_summary,
         scoreBreakdown: prediction.score_breakdown,
@@ -164,8 +161,11 @@ app.get("/api/predictions/:id/result", async (req, res) => {
       });
     }
 
+    // Fallback path: the poll worker normally scores every prediction at
+    // full time (lib/match-finish.js), but if it wasn't running we score
+    // this one on demand.
     const rawRes = await axios.get(`${apiBaseUrl}/scores/snapshot/${match.id}`, {
-      headers: txlineHeaders,
+      headers: txlineHeaders(),
       params: { Ts: 0 },
     });
     let matchState = createInitialState(match.id);
@@ -192,6 +192,7 @@ app.get("/api/predictions/:id/result", async (req, res) => {
       predictedWinner: updated.extracted_winner,
       predictedScoreHome: updated.extracted_score_home,
       predictedScoreAway: updated.extracted_score_away,
+      celebrationLine: buildCelebrationLine(scoreResult.accuracyPct),
       accuracyPct: updated.accuracy_pct,
       comparisonSummary: updated.comparison_summary,
       scoreBreakdown: updated.score_breakdown,
@@ -245,7 +246,9 @@ app.get("/api/rooms/:code", async (req, res) => {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    const members = await db.getRoomMembersWithPredictions(room.id, room.match_id);
+    // Optional userId marks the requesting user's own row (isYou) so the
+    // frontend doesn't have to guess by display name or append a duplicate.
+    const members = await db.getRoomMembersWithPredictions(room.id, room.match_id, req.query.userId || null);
 
     res.json({
       roomId: room.id,

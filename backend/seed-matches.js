@@ -1,18 +1,7 @@
 ﻿import "dotenv/config";
 import axios from "axios";
-import fs from "fs";
 import { upsertMatch } from "./lib/db.js";
-
-const apiOrigin = "https://txline-dev.txodds.com";
-const apiBaseUrl = `${apiOrigin}/api`;
-
-const credentials = JSON.parse(fs.readFileSync("./txline-credentials.json", "utf8"));
-const { jwt, apiToken } = credentials;
-
-const headers = {
-  Authorization: `Bearer ${jwt}`,
-  "X-Api-Token": apiToken,
-};
+import { apiBaseUrl, txlineHeaders } from "./lib/txline.js";
 
 const TEAM_CODES = {
   France: "FRA", Morocco: "MAR", Argentina: "ARG", Brazil: "BRA",
@@ -29,7 +18,7 @@ async function main() {
 
   console.log("Fetching fixtures from TxLINE...");
   const res = await axios.get(`${apiBaseUrl}/fixtures/snapshot`, {
-    headers,
+    headers: txlineHeaders(),
     params: { startEpochDay: todayEpochDay },
   });
 

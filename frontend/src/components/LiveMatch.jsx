@@ -13,11 +13,18 @@ export default function LiveMatch(props) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [failed, setFailed] = useState(false);
+
   useEffect(function () {
     let active = true;
     fetchOddsHistory(match.id).then(function (res) {
       if (active) {
         setData(res);
+        setLoading(false);
+      }
+    }).catch(function () {
+      if (active) {
+        setFailed(true);
         setLoading(false);
       }
     });
@@ -28,10 +35,30 @@ export default function LiveMatch(props) {
     const interval = setInterval(function () {
       fetchOddsHistory(match.id).then(function (res) {
         setData(res);
+        setFailed(false);
+      }).catch(function () {
+        // Keep showing the last good data; the next poll may recover.
       });
     }, 45000);
     return function () { clearInterval(interval); };
   }, [match.id]);
+
+  if (!loading && !data) {
+    return (
+      <div className="pt-6 animate-rise">
+        <button onClick={props.onBack} className="flex items-center gap-1.5 text-slate hover:text-paper text-sm mb-6 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
+        <div className="bg-surface border border-line rounded-2xl p-8 text-center">
+          <p className="text-paper text-sm font-medium mb-1">Couldn't load live data.</p>
+          <p className="text-slate-faint text-xs">
+            {failed ? "We'll keep retrying automatically - check back in a moment." : ""}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pt-6 animate-rise">

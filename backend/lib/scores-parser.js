@@ -8,6 +8,7 @@ export function createInitialState(fixtureId) {
     gamePhaseName: "Not Started",
     scoreHome: 0,
     scoreAway: 0,
+    clockSeconds: null,
     lastProcessedId: -1,
     events: [],
   };
@@ -64,6 +65,10 @@ export function parseScoreUpdate(state, rawMessages) {
     }
     // If StatusId is missing or unrecognized, we simply skip the phase
     // update for this message - the last known good phase is preserved.
+
+    if (typeof msg.Clock?.Seconds === "number") {
+      next.clockSeconds = msg.Clock.Seconds;
+    }
 
     const scoreFromMsg = extractScore(msg);
     if (scoreFromMsg && (scoreFromMsg.home !== next.scoreHome || scoreFromMsg.away !== next.scoreAway)) {
