@@ -2,11 +2,7 @@ import React, { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ArrowLeft, TrendingUp, FastForward } from "lucide-react";
 import { fetchOddsHistory } from "../lib/api.js";
-
-const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
-function flagUrl(code, width) {
-  return "https://flagcdn.com/w" + (width || 80) + "/" + (FLAG_ISO[code] || "un") + ".png";
-}
+import { flagUrl } from "../lib/flags.js";
 
 export default function LiveMatch(props) {
   const match = props.match;

@@ -164,12 +164,26 @@ app.get("/api/predictions/:id/result", async (req, res) => {
     // Fallback path: the poll worker normally scores every prediction at
     // full time (lib/match-finish.js), but if it wasn't running we score
     // this one on demand.
-    const rawRes = await axios.get(`${apiBaseUrl}/scores/snapshot/${match.id}`, {
-      headers: txlineHeaders(),
-      params: { Ts: 0 },
-    });
-    let matchState = createInitialState(match.id);
-    matchState = parseScoreUpdate(matchState, rawRes.data);
+    let matchState;
+    try {
+      const rawRes = await axios.get(`${apiBaseUrl}/scores/snapshot/${match.id}`, {
+        headers: txlineHeaders(),
+        params: { Ts: 0 },
+      });
+      matchState = parseScoreUpdate(createInitialState(match.id), rawRes.data);
+    } catch (feedErr) {
+      // TxLINE unavailable (e.g. expired subscription) - fall back to the
+      // final state already synced to the DB so past matches stay playable.
+      // Events aren't stored there, so event mentions score as misses.
+      if (match.score_home === null || match.score_away === null) throw feedErr;
+      console.warn(`TxLINE fetch failed for ${match.id}, scoring from DB state:`, feedErr.response?.status || feedErr.message);
+      matchState = {
+        ...createInitialState(match.id),
+        gamePhase: match.game_phase,
+        scoreHome: match.score_home,
+        scoreAway: match.score_away,
+      };
+    }
 
     const extracted = {
       winner: prediction.extracted_winner,

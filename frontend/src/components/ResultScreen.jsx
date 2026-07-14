@@ -3,11 +3,7 @@ import { toPng } from "html-to-image";
 import { ArrowLeft, Trophy, Share2, Check, X, Home, Download, ChevronDown, BarChart3, Users, Crown, AlertTriangle, RotateCw } from "lucide-react";
 import { fetchNarrative, fetchPredictionResult, fetchRoom } from "../lib/api.js";
 import { getUserId } from "../lib/identity.js";
-
-const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
-function flagUrl(code, width) {
-  return "https://flagcdn.com/w" + (width || 80) + "/" + (FLAG_ISO[code] || "un") + ".png";
-}
+import { flagUrl } from "../lib/flags.js";
 
 export default function ResultScreen(props) {
   const match = props.match;

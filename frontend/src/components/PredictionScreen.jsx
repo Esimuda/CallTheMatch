@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Mic, Square, ArrowLeft, Send, Check, Sparkles, Radio, Users } from "lucide-react";
+import { Mic, Square, ArrowLeft, Send, Check, Sparkles, Radio, Users, Brain } from "lucide-react";
 import { submitPrediction } from "../lib/api.js";
 import { getUserId } from "../lib/identity.js";
+import { flagUrl } from "../lib/flags.js";
 
-const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
-function flagUrl(code, width) {
-  return "https://flagcdn.com/w" + (width || 80) + "/" + (FLAG_ISO[code] || "un") + ".png";
-}
+const FINISHED_PHASES = ["F", "FET", "FPE"];
 
 export default function PredictionScreen(props) {
   const match = props.match;
+  // Recall mode: the match has already been played, so the user is testing
+  // their knowledge of what happened instead of predicting what will.
+  const isRecall = FINISHED_PHASES.includes(match.gamePhase);
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
@@ -95,6 +96,7 @@ export default function PredictionScreen(props) {
         match={match}
         text={text}
         extracted={extracted}
+        isRecall={isRecall}
         onGoLive={props.onGoLive}
         onPlayWithFriends={handlePlayWithFriends}
         creatingRoom={creatingRoom}
@@ -119,18 +121,27 @@ export default function PredictionScreen(props) {
         </div>
       )}
 
+      {isRecall && (
+        <div className="mt-4 flex items-center gap-2 bg-gold/10 border border-gold/40 rounded-xl px-4 py-2.5">
+          <Brain className="w-4 h-4 text-gold" />
+          <span className="text-paper text-sm">This match has been played - call it from memory.</span>
+        </div>
+      )}
+
       <p className="text-gold font-mono text-xs uppercase tracking-[0.2em] mt-8 mb-2">
-        Your call
+        {isRecall ? "Your recall" : "Your call"}
       </p>
       <h2 className="font-display font-bold text-2xl text-paper mb-5">
-        Tell us what you think will happen.
+        {isRecall ? "Tell us what you think happened." : "Tell us what you think will happen."}
       </h2>
 
       <div className="relative bg-surface border border-line rounded-2xl focus-within:border-gold transition-colors">
         <textarea
           value={text}
           onChange={function (e) { setText(e.target.value); }}
-          placeholder="I think France wins 2-1, Mbappe scores, maybe a red card for Morocco in the second half..."
+          placeholder={isRecall
+            ? "I'm pretty sure it finished 2-1, they scored late, and someone got sent off..."
+            : "I think France wins 2-1, Mbappe scores, maybe a red card for Morocco in the second half..."}
           rows={6}
           className="w-full bg-transparent resize-none px-5 py-4 pr-16 text-paper placeholder-slate-faint outline-none text-[1.05rem] leading-relaxed font-body"
         />
@@ -185,7 +196,7 @@ export default function PredictionScreen(props) {
         ) : (
           <React.Fragment>
             <Send className="w-4 h-4" />
-            Lock in my call
+            {isRecall ? "Lock in my answer" : "Lock in my call"}
           </React.Fragment>
         )}
       </button>
@@ -219,7 +230,9 @@ function ConfirmationCard(props) {
         Here's what we understood.
       </h2>
       <p className="text-slate text-sm mb-6">
-        Take a look - this is what we'll score you against once the match ends.
+        {props.isRecall
+          ? "Take a look - we'll score this against what actually happened."
+          : "Take a look - this is what we'll score you against once the match ends."}
       </p>
 
       <div className="bg-surface border border-gold/30 rounded-2xl p-5 relative overflow-hidden">
@@ -266,7 +279,7 @@ function ConfirmationCard(props) {
           onClick={props.onGoLive}
           className="flex-1 bg-pitch hover:bg-pitch-bright text-ink font-display font-semibold text-sm rounded-xl py-3.5 transition-colors"
         >
-          Watch live
+          {props.isRecall ? "See how I did" : "Watch live"}
         </button>
       </div>
     </div>

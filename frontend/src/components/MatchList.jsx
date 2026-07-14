@@ -1,21 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { ChevronRight, Calendar, Trophy } from "lucide-react";
+import { ChevronRight, Calendar, Trophy, Brain } from "lucide-react";
 import { fetchMatches } from "../lib/api.js";
+import { flagUrl } from "../lib/flags.js";
 import { JoinRoomForm, CreateRoomForm } from "./RoomScreens.jsx";
-
-const FLAG_ISO = {
-  FRA: "fr",
-  MAR: "ma",
-  ARG: "ar",
-  BRA: "br",
-  ENG: "gb-eng",
-  ESP: "es",
-};
-
-function flagUrl(code, width) {
-  const iso = FLAG_ISO[code] || "un";
-  return "https://flagcdn.com/w" + (width || 160) + "/" + iso + ".png";
-}
 
 function formatKickoff(iso) {
   const d = new Date(iso);
@@ -102,10 +89,13 @@ export default function MatchList(props) {
 
       {!loading && finished.length > 0 && (
         <div className="mt-10">
-          <div className="flex items-center gap-2 mb-4 text-slate text-xs font-mono uppercase tracking-wider">
-            <Trophy className="w-3.5 h-3.5" />
-            Recent results
+          <div className="flex items-center gap-2 mb-1 text-slate text-xs font-mono uppercase tracking-wider">
+            <Brain className="w-3.5 h-3.5" />
+            Already played - test your knowledge
           </div>
+          <p className="text-slate-faint text-xs mb-4 px-1">
+            Think you remember how these went? Call the result from memory and see how close you get.
+          </p>
 
           <div className="flex flex-col gap-3">
             {finished.map(function (m, i) {
@@ -114,6 +104,7 @@ export default function MatchList(props) {
                   key={m.id}
                   match={m}
                   delayMs={i * 90}
+                  onClick={function () { props.onSelectMatch(m); }}
                   onViewLeaderboard={function () { props.onViewLeaderboard(m); }}
                 />
               );
@@ -133,7 +124,7 @@ function Hero(props) {
       </div>
 
       <p className="text-gold font-mono text-xs uppercase tracking-[0.25em] mb-4 animate-rise relative z-10">
-        World Cup - Quarter-finals
+        World Cup 2026 Matches
       </p>
       <h1
         className="font-display font-black text-paper leading-[1.02] animate-rise relative z-10"
@@ -147,8 +138,8 @@ function Hero(props) {
         className="mt-5 text-slate text-lg leading-relaxed max-w-md animate-rise relative z-10"
         style={{ animationDelay: "160ms" }}
       >
-        Say what you think will happen, in your own words. Watch it live.
-        Find out how good a caller you really are.
+        Call upcoming matches in your own words, or test how well you know
+        the ones already played. Find out how good a caller you really are.
       </p>
 
       {props.featured && (
@@ -238,38 +229,48 @@ function FixtureCard(props) {
 function FinishedFixtureCard(props) {
   const m = props.match;
   return (
-    <button
-      onClick={props.onViewLeaderboard}
-      className="animate-rise w-full text-left bg-surface/60 border border-line rounded-2xl px-5 py-4 flex items-center justify-between hover:border-gold transition-colors group"
+    <div
+      className="animate-rise bg-surface/60 border border-line rounded-2xl overflow-hidden hover:border-gold transition-colors group"
       style={{ animationDelay: props.delayMs + "ms" }}
     >
-      <div className="flex items-center gap-4">
-        <div className="flex items-center -space-x-3">
-          <img
-            src={flagUrl(m.homeCode, 160)}
-            alt={m.homeTeam}
-            className="w-11 h-11 rounded-full object-cover border-2 border-surface shadow-md opacity-80"
-          />
-          <img
-            src={flagUrl(m.awayCode, 160)}
-            alt={m.awayTeam}
-            className="w-11 h-11 rounded-full object-cover border-2 border-surface shadow-md opacity-80"
-          />
-        </div>
-        <div>
-          <div className="font-display font-semibold text-paper text-base leading-tight">
-            {m.homeTeam} <span className="text-slate-faint font-body font-normal text-sm">vs</span> {m.awayTeam}
+      <button onClick={props.onClick} className="w-full text-left px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center -space-x-3">
+            <img
+              src={flagUrl(m.homeCode, 160)}
+              alt={m.homeTeam}
+              className="w-11 h-11 rounded-full object-cover border-2 border-surface shadow-md opacity-80"
+            />
+            <img
+              src={flagUrl(m.awayCode, 160)}
+              alt={m.awayTeam}
+              className="w-11 h-11 rounded-full object-cover border-2 border-surface shadow-md opacity-80"
+            />
           </div>
-          <div className="text-slate-faint text-xs mt-1 font-mono uppercase tracking-wider">
-            Full-time - {formatKickoff(m.kickoffTime)}
+          <div>
+            <div className="font-display font-semibold text-paper text-base leading-tight">
+              {m.homeTeam} <span className="text-slate-faint font-body font-normal text-sm">vs</span> {m.awayTeam}
+            </div>
+            <div className="text-slate-faint text-xs mt-1 font-mono uppercase tracking-wider">
+              Full-time - {formatKickoff(m.kickoffTime)}
+            </div>
           </div>
         </div>
-      </div>
-      <div className="flex items-center gap-1.5 text-slate-faint group-hover:text-gold text-xs font-mono uppercase tracking-wider transition-colors">
+        <div className="flex items-center gap-1.5 text-slate-faint group-hover:text-gold text-xs font-mono uppercase tracking-wider transition-colors">
+          <Brain className="w-3.5 h-3.5" />
+          Test yourself
+          <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-all" />
+        </div>
+      </button>
+
+      <button
+        onClick={props.onViewLeaderboard}
+        className="w-full flex items-center justify-center gap-1.5 border-t border-line/60 py-2.5 text-slate hover:text-gold hover:bg-surface-alt text-xs font-mono uppercase tracking-wider transition-colors"
+      >
         <Trophy className="w-3.5 h-3.5" />
-        Leaderboard
-      </div>
-    </button>
+        View leaderboard
+      </button>
+    </div>
   );
 }
 

@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Users, Copy, Check, ArrowLeft, Play, Crown, LogIn, X, PlusCircle } from "lucide-react";
 import { fetchRoom } from "../lib/api.js";
-
-const FLAG_ISO = { FRA: "fr", MAR: "ma", ARG: "ar", BRA: "br", ENG: "gb-eng", ESP: "es" };
-function flagUrl(code, width) {
-  return "https://flagcdn.com/w" + (width || 80) + "/" + (FLAG_ISO[code] || "un") + ".png";
-}
+import { flagUrl } from "../lib/flags.js";
 
 export function RoomLobby(props) {
   const [members, setMembers] = useState([]);
