@@ -56,10 +56,7 @@ app.post("/api/predictions", async (req, res) => {
 
     const extracted = await extractPrediction(predictionText, match.home_team, match.away_team);
 
-    const prediction = await db.createPrediction({
-      user_id: userId,
-      match_id: matchId,
-      room_id: roomId || null,
+    const fields = {
       prediction_text: predictionText,
       extracted_winner: extracted.winner,
       extracted_score_home: extracted.scoreHome,
@@ -67,22 +64,78 @@ app.post("/api/predictions", async (req, res) => {
       extracted_players: extracted.mentionedPlayers,
       extracted_events: extracted.mentionedEvents,
       extraction_confidence: extracted.confidence,
-    });
+    };
+
+    const existing = await db.getUserPredictionForMatch(userId, matchId);
+    let prediction;
+    let status = "submitted";
+
+    if (existing) {
+      prediction = await db.updatePredictionContent(existing.id, {
+        ...fields,
+        room_id: roomId || existing.room_id || null,
+      });
+      status = "updated";
+    } else {
+      prediction = await db.createPrediction({
+        user_id: userId,
+        match_id: matchId,
+        room_id: roomId || null,
+        ...fields,
+      });
+    }
 
     // Submitting a prediction with a roomId implicitly joins that room -
     // no separate "join" step in the frontend flow.
-    if (roomId) {
-      await db.addRoomMember(roomId, userId);
+    const effectiveRoomId = roomId || prediction.room_id;
+    if (effectiveRoomId) {
+      await db.addRoomMember(effectiveRoomId, userId);
     }
 
     res.json({
       predictionId: prediction.id,
-      status: "submitted",
+      status,
       extracted,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to submit prediction" });
+  }
+});
+
+function predictionToExtracted(row) {
+  return {
+    winner: row.extracted_winner,
+    scoreHome: row.extracted_score_home,
+    scoreAway: row.extracted_score_away,
+    mentionedPlayers: row.extracted_players || [],
+    mentionedEvents: row.extracted_events || [],
+    confidence: row.extraction_confidence || "low",
+  };
+}
+
+// --- GET /api/matches/:id/my-prediction ---
+app.get("/api/matches/:id/my-prediction", async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) {
+      return res.status(400).json({ error: "Missing userId" });
+    }
+
+    const prediction = await db.getUserPredictionForMatch(userId, req.params.id);
+    if (!prediction) {
+      return res.status(404).json({ error: "No prediction found for this match" });
+    }
+
+    res.json({
+      predictionId: prediction.id,
+      predictionText: prediction.prediction_text,
+      roomId: prediction.room_id,
+      extracted: predictionToExtracted(prediction),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch prediction" });
   }
 });
 

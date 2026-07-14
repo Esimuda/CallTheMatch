@@ -442,7 +442,6 @@ function formatPredictedCall(match, winner, scoreHome, scoreAway) {
 function ShareCard(props) {
   const m = props.match;
   const r = props.result;
-  const b = r.scoreBreakdown;
 
   const yourCall = formatPredictedCall(m, r.predictedWinner, r.predictedScoreHome, r.predictedScoreAway);
   const actualResult = m.homeTeam + " " + r.finalScoreHome + " - " + r.finalScoreAway + " " + m.awayTeam;
@@ -467,7 +466,7 @@ function ShareCard(props) {
 
         <div className="h-px bg-line my-5"></div>
 
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-4">
           <div>
             <p className="text-slate-faint text-[0.6rem] font-mono uppercase tracking-wider mb-1">You called</p>
             <p className="text-paper text-sm font-semibold leading-snug">{yourCall}</p>
@@ -476,16 +475,11 @@ function ShareCard(props) {
             <p className="text-slate-faint text-[0.6rem] font-mono uppercase tracking-wider mb-1">What happened</p>
             <p className="text-paper text-sm font-semibold leading-snug">{actualResult}</p>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-            <ShareStat label="Winner" hit={b.winnerCorrect} />
-            <ShareStat label="Scoreline" hit={b.scorelineCorrect} />
-            {(b.mentionedEventsHit || []).map(function (tag) {
-              return <ShareStat key={tag} label={formatEventTag(tag)} hit={true} />;
-            })}
-            {(b.mentionedEventsMissed || []).map(function (tag) {
-              return <ShareStat key={tag} label={formatEventTag(tag)} hit={false} />;
-            })}
-          </div>
+        </div>
+
+        <div className="mt-6 text-center">
+          <p className="font-display font-black text-5xl text-gold leading-none">{r.accuracyPct}%</p>
+          <p className="text-slate-faint text-[0.65rem] font-mono uppercase tracking-wider mt-2">Call accuracy</p>
         </div>
 
         <div className="h-px bg-line my-5"></div>
@@ -511,19 +505,6 @@ function ShareCard(props) {
         </button>
       </div>
     </div>
-  );
-}
-
-function ShareStat(props) {
-  return (
-    <span className="text-xs font-mono flex items-center gap-1">
-      {props.hit ? (
-        <Check className="w-3 h-3 text-pitch-bright" />
-      ) : (
-        <X className="w-3 h-3 text-red" />
-      )}
-      <span className="text-slate">{props.label}</span>
-    </span>
   );
 }
 

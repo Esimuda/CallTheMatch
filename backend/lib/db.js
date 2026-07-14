@@ -26,6 +26,35 @@ export async function createPrediction(prediction) {
   return data[0];
 }
 
+export async function getUserPredictionForMatch(userId, matchId) {
+  const { data, error } = await supabase
+    .from("predictions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("match_id", matchId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updatePredictionContent(id, updates) {
+  const { data, error } = await supabase
+    .from("predictions")
+    .update({
+      ...updates,
+      // A changed call needs to be scored again from scratch.
+      accuracy_pct: null,
+      comparison_summary: null,
+      score_breakdown: null,
+    })
+    .eq("id", id)
+    .select();
+  if (error) throw error;
+  return data[0];
+}
+
 export async function getPredictionById(id) {
   const { data, error } = await supabase.from("predictions").select("*").eq("id", id).single();
   if (error) throw error;

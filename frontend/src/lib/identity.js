@@ -7,6 +7,7 @@
 const USER_ID_KEY = "callthematch_user_id";
 const DISPLAY_NAME_KEY = "callthematch_display_name";
 const RECOVERY_EMAIL_KEY = "callthematch_recovery_email";
+const PREDICTIONS_KEY = "callthematch_predictions";
 
 const memoryFallback = {};
 
@@ -67,4 +68,36 @@ export function clearIdentity() {
   safeRemove(USER_ID_KEY);
   safeRemove(DISPLAY_NAME_KEY);
   safeRemove(RECOVERY_EMAIL_KEY);
+  safeRemove(PREDICTIONS_KEY);
+}
+
+// Per-match prediction cache keyed by matchId. Tied to the same anonymous
+// userId above - survives page reloads and revisiting a fixture without
+// needing email recovery. Server remains source of truth; this is a fast
+// local mirror so the UI can restore state even before the network returns.
+export function savePredictionForMatch(matchId, { predictionId, predictionText }) {
+  let map = {};
+  try {
+    const raw = safeGet(PREDICTIONS_KEY);
+    if (raw) map = JSON.parse(raw);
+  } catch (e) {
+    map = {};
+  }
+  map[matchId] = { predictionId, predictionText };
+  safeSet(PREDICTIONS_KEY, JSON.stringify(map));
+}
+
+export function getCachedPredictionForMatch(matchId) {
+  try {
+    const raw = safeGet(PREDICTIONS_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw);
+    return map[matchId] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function hasCachedPredictionForMatch(matchId) {
+  return getCachedPredictionForMatch(matchId) !== null;
 }

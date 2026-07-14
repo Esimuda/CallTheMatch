@@ -36,6 +36,20 @@ export async function submitPrediction(payload) {
   return post("/api/predictions", payload);
 }
 
+// GET /api/matches/:id/my-prediction
+export async function fetchMyPrediction(matchId) {
+  const userId = getUserId();
+  const res = await fetch(
+    `${API_BASE_URL}/api/matches/${matchId}/my-prediction?userId=${encodeURIComponent(userId)}`
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 // GET /api/matches/:id/odds-history
 export async function fetchOddsHistory(matchId) {
   return get(`/api/matches/${matchId}/odds-history`);
