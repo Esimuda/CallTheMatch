@@ -1,4 +1,4 @@
-﻿// Compares an extracted prediction against the real match outcome.
+// Compares an extracted prediction against the real match outcome.
 // Deterministic, rule-based - no AI call needed for scoring itself, which
 // keeps this fast, free, and fully explainable (matches the original
 // schematic design: scoring should be a rubric users can trust, not a
@@ -108,43 +108,6 @@ export function buildComparisonSummary(extracted, matchState, scoreResult) {
   }
 
   return summary;
-}
-
-// Short, clean one-line summaries for the result screen comparison -
-// used instead of dumping the full raw prediction text, which can be
-// arbitrarily long (users sometimes write full match-preview essays).
-export function buildShortPredictionSummary(extracted, homeTeam, awayTeam) {
-  const parts = [];
-
-  if (extracted.winner === "home") parts.push(`${homeTeam} to win`);
-  else if (extracted.winner === "away") parts.push(`${awayTeam} to win`);
-  else if (extracted.winner === "draw") parts.push("A draw");
-  else parts.push("No clear winner called");
-
-  if (extracted.scoreHome !== null && extracted.scoreAway !== null) {
-    parts.push(`${extracted.scoreHome}-${extracted.scoreAway}`);
-  }
-
-  return parts.join(", ");
-}
-
-export function buildActualResultSummary(matchState, homeTeam, awayTeam) {
-  const winner = matchState.scoreHome > matchState.scoreAway
-    ? homeTeam
-    : matchState.scoreAway > matchState.scoreHome
-    ? awayTeam
-    : "Draw";
-  return `${winner === "Draw" ? "Draw" : winner + " won"}, ${matchState.scoreHome}-${matchState.scoreAway}`;
-}
-
-// A short, tiered celebratory line based on accuracy - adds personality
-// without needing another AI call.
-export function buildCelebrationLine(accuracyPct) {
-  if (accuracyPct >= 90) return "You're an OG. Nothing gets past you.";
-  if (accuracyPct >= 70) return "Sharp call. You read that one well.";
-  if (accuracyPct >= 50) return "Solid instincts. Half the picture, right.";
-  if (accuracyPct >= 25) return "Football's unpredictable like that.";
-  return "Bold call. Didn't land, but respect the confidence.";
 }
 
 // Short, clean one-line summaries for the result screen comparison -
