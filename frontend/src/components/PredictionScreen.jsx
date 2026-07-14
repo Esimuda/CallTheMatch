@@ -3,6 +3,7 @@ import { Mic, Square, ArrowLeft, Send, Check, Sparkles, Radio, Users, Brain, Pen
 import { submitPrediction, fetchMyPrediction } from "../lib/api.js";
 import { getUserId, savePredictionForMatch, getCachedPredictionForMatch } from "../lib/identity.js";
 import { flagUrl } from "../lib/flags.js";
+import SaveCallsPrompt from "./SaveCallsPrompt.jsx";
 
 const FINISHED_PHASES = ["F", "FET", "FPE"];
 
@@ -150,6 +151,8 @@ export default function PredictionScreen(props) {
         onEdit={function () { setEditing(true); }}
         creatingRoom={creatingRoom}
         alreadyInRoom={!!props.inviteCode}
+        onOpenRecovery={props.onOpenRecovery}
+        recoveryLinked={props.recoveryLinked}
       />
     );
   }
@@ -340,6 +343,11 @@ function ConfirmationCard(props) {
         <Pencil className="w-3.5 h-3.5" />
         Edit my call
       </button>
+
+      <SaveCallsPrompt
+        linked={props.recoveryLinked}
+        onSave={props.onOpenRecovery}
+      />
 
       <div className="flex gap-3 mt-6">
         <button

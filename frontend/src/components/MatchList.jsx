@@ -3,6 +3,7 @@ import { ChevronRight, Calendar, Trophy, Brain } from "lucide-react";
 import { fetchMatches } from "../lib/api.js";
 import { flagUrl } from "../lib/flags.js";
 import { JoinRoomForm, CreateRoomForm } from "./RoomScreens.jsx";
+import SaveCallsPrompt from "./SaveCallsPrompt.jsx";
 
 function formatKickoff(iso) {
   const d = new Date(iso);
@@ -50,6 +51,12 @@ export default function MatchList(props) {
   return (
     <div>
       <Hero featured={featured} />
+
+      <SaveCallsPrompt
+        linked={props.recoveryLinked}
+        compact
+        onSave={props.onOpenRecovery}
+      />
 
       <div className="mt-10">
         <div className="flex items-center gap-2 mb-4 text-slate text-xs font-mono uppercase tracking-wider">

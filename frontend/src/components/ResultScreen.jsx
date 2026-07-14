@@ -4,6 +4,7 @@ import { ArrowLeft, Trophy, Share2, Check, X, Home, Download, ChevronDown, BarCh
 import { fetchNarrative, fetchPredictionResult, fetchRoom } from "../lib/api.js";
 import { getUserId } from "../lib/identity.js";
 import { flagUrl } from "../lib/flags.js";
+import SaveCallsPrompt from "./SaveCallsPrompt.jsx";
 
 export default function ResultScreen(props) {
   const match = props.match;
@@ -188,6 +189,12 @@ export default function ResultScreen(props) {
       />
 
       <GlobalLeaderboardTeaser onView={props.onViewGlobalLeaderboard} />
+
+      <SaveCallsPrompt
+        linked={props.recoveryLinked}
+        compact
+        onSave={props.onOpenRecovery}
+      />
 
       {roomMembers && (
         <GroupResultCard

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Radio, Mail, AlertTriangle, Home } from "lucide-react";
+import { Radio, Mail, AlertTriangle, Home, Check } from "lucide-react";
 import MatchList from "./components/MatchList.jsx";
 import PredictionScreen from "./components/PredictionScreen.jsx";
 import LiveMatch from "./components/LiveMatch.jsx";
@@ -9,7 +9,7 @@ import GlobalLeaderboard from "./components/GlobalLeaderboard.jsx";
 import AccountRecovery from "./components/AccountRecovery.jsx";
 import { RoomLobby } from "./components/RoomScreens.jsx";
 import { createRoom } from "./lib/api.js";
-import { getUserId, getDisplayName, setDisplayName as persistDisplayName } from "./lib/identity.js";
+import { getUserId, getDisplayName, setDisplayName as persistDisplayName, getRecoveryEmail } from "./lib/identity.js";
 
 const FINISHED_PHASES = ["F", "FET", "FPE"];
 const NOT_STARTED_PHASES = ["NS"];
@@ -29,6 +29,7 @@ export default function App() {
   const [inviteCode, setInviteCode] = useState(null);
   const [resultAccuracy, setResultAccuracy] = useState(null);
   const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryLinked, setRecoveryLinked] = useState(!!getRecoveryEmail());
 
   const [leaderboardMatch, setLeaderboardMatch] = useState(null);
   const [leaderboardReturn, setLeaderboardReturn] = useState("home");
@@ -107,12 +108,26 @@ export default function App() {
     setView("leaderboard");
   }
 
+  function openRecovery() {
+    setShowRecovery(true);
+  }
+
+  function handleRecoveryClose() {
+    setShowRecovery(false);
+    setRecoveryLinked(!!getRecoveryEmail());
+  }
+
+  function handleEmailSaved() {
+    setRecoveryLinked(true);
+  }
+
   return (
     <div className="min-h-screen bg-ink text-paper font-body relative overflow-hidden">
       <TopBar
         view={view}
+        recoveryLinked={recoveryLinked}
         onLogoClick={goHome}
-        onOpenRecovery={function () { setShowRecovery(true); }}
+        onOpenRecovery={openRecovery}
       />
 
       <main className="relative z-10 max-w-2xl mx-auto px-5 pb-24">
@@ -122,6 +137,8 @@ export default function App() {
             onJoinRoom={handleJoinRoom}
             onCreateRoomFromHome={handleCreateRoomFromHome}
             onViewLeaderboard={function (m) { handleViewLeaderboard(m, "home"); }}
+            onOpenRecovery={openRecovery}
+            recoveryLinked={recoveryLinked}
           />
         )}
 
@@ -136,6 +153,8 @@ export default function App() {
             onCreateRoom={handleCreateRoom}
             inviteCode={inviteCode}
             onGoToRoom={function () { setView("room"); }}
+            onOpenRecovery={openRecovery}
+            recoveryLinked={recoveryLinked}
           />
         )}
 
@@ -178,6 +197,8 @@ export default function App() {
             onDone={goHome}
             onResultLoaded={function (pct) { setResultAccuracy(pct); }}
             onViewGlobalLeaderboard={function () { handleViewLeaderboard(selectedMatch, "result"); }}
+            onOpenRecovery={openRecovery}
+            recoveryLinked={recoveryLinked}
           />
         )}
 
@@ -194,7 +215,7 @@ export default function App() {
       </main>
 
       {showRecovery && (
-        <AccountRecovery onClose={function () { setShowRecovery(false); }} />
+        <AccountRecovery onClose={handleRecoveryClose} onEmailSaved={handleEmailSaved} />
       )}
     </div>
   );
@@ -262,10 +283,23 @@ function TopBar(props) {
           )}
           <button
             onClick={props.onOpenRecovery}
-            aria-label="Recover your calls"
-            className="text-slate-faint hover:text-gold transition-colors"
+            className={
+              props.recoveryLinked
+                ? "flex items-center gap-1.5 px-3 py-2 rounded-full bg-pitch/15 border border-pitch/40 text-pitch-bright text-xs font-mono uppercase tracking-wide hover:border-pitch-bright transition-colors"
+                : "flex items-center gap-2 px-3.5 py-2 rounded-full bg-gold/15 border border-gold/50 hover:bg-gold/25 hover:border-gold text-gold text-xs font-display font-semibold transition-colors shadow-sm shadow-gold/10"
+            }
           >
-            <Mail className="w-4 h-4" />
+            {props.recoveryLinked ? (
+              <React.Fragment>
+                <Check className="w-3.5 h-3.5" />
+                <span>Calls linked</span>
+              </React.Fragment>
+            ) : (
+              <React.Fragment>
+                <Mail className="w-4 h-4" />
+                <span>Save your calls</span>
+              </React.Fragment>
+            )}
           </button>
         </div>
       </div>
