@@ -4,7 +4,10 @@
   "description": "CallTheMatch backend - TxLINE subscription, polling, and API",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "worker": "node poll-worker.js",
+    "seed": "node seed-matches.js",
+    "sync": "node sync-matches.js"
   },
   "keywords": [],
   "author": "",

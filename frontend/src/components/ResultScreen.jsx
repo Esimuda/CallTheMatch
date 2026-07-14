@@ -494,7 +494,7 @@ function ShareCard(props) {
 
         <div className="h-px bg-line my-5"></div>
 
-        <p className="text-slate-faint text-xs text-center">Call it before the final whistle - callthematch.app</p>
+        <p className="text-slate-faint text-xs text-center">Call it before the final whistle - CallTheMatch</p>
       </div>
 
       <div className="flex gap-3 mt-3">
