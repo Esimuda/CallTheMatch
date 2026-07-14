@@ -152,6 +152,9 @@ app.get("/api/predictions/:id/result", async (req, res) => {
     if (prediction.accuracy_pct !== null) {
       return res.json({
         originalPredictionText: prediction.prediction_text,
+        predictedWinner: prediction.extracted_winner,
+        predictedScoreHome: prediction.extracted_score_home,
+        predictedScoreAway: prediction.extracted_score_away,
         accuracyPct: prediction.accuracy_pct,
         comparisonSummary: prediction.comparison_summary,
         scoreBreakdown: prediction.score_breakdown,
@@ -186,6 +189,9 @@ app.get("/api/predictions/:id/result", async (req, res) => {
 
     res.json({
       originalPredictionText: updated.prediction_text,
+      predictedWinner: updated.extracted_winner,
+      predictedScoreHome: updated.extracted_score_home,
+      predictedScoreAway: updated.extracted_score_away,
       accuracyPct: updated.accuracy_pct,
       comparisonSummary: updated.comparison_summary,
       scoreBreakdown: updated.score_breakdown,

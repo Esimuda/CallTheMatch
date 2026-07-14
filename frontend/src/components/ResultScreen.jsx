@@ -77,7 +77,17 @@ export default function ResultScreen(props) {
     if (!node) return;
     setBusy(true);
     try {
-      const dataUrl = await toPng(node, { pixelRatio: 2, backgroundColor: "#070B14" });
+      // Pin width/height explicitly to the node's full scroll size. Without
+      // this, html-to-image can clip the export to whatever was in the
+      // viewport at capture time instead of the card's actual full height -
+      // this is what was producing PNGs with the bottom of the card missing.
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2,
+        backgroundColor: "#070B14",
+        width: node.scrollWidth,
+        height: node.scrollHeight,
+        cacheBust: true,
+      });
       const link = document.createElement("a");
       link.download = filename;
       link.href = dataUrl;
@@ -338,10 +348,28 @@ function GroupRow(props) {
   );
 }
 
+function formatPredictedCall(match, winner, scoreHome, scoreAway) {
+  const winnerText =
+    winner === "home" ? match.homeTeam + " to win"
+    : winner === "away" ? match.awayTeam + " to win"
+    : winner === "draw" ? "A draw"
+    : null;
+
+  const hasScore = typeof scoreHome === "number" && typeof scoreAway === "number";
+
+  if (winnerText && hasScore) return winnerText + ", " + scoreHome + "-" + scoreAway;
+  if (winnerText) return winnerText;
+  if (hasScore) return scoreHome + "-" + scoreAway;
+  return "No clear call extracted";
+}
+
 function ShareCard(props) {
   const m = props.match;
   const r = props.result;
   const b = r.scoreBreakdown;
+
+  const yourCall = formatPredictedCall(m, r.predictedWinner, r.predictedScoreHome, r.predictedScoreAway);
+  const actualResult = m.homeTeam + " " + r.finalScoreHome + " - " + r.finalScoreAway + " " + m.awayTeam;
 
   return (
     <div className="mt-8">
@@ -365,20 +393,25 @@ function ShareCard(props) {
 
         <div className="grid grid-cols-1 gap-3">
           <div>
-            <p className="text-slate-faint text-[0.6rem] font-mono uppercase tracking-wider mb-1">You said</p>
-            <p className="text-paper text-sm italic leading-snug">"{r.originalPredictionText}"</p>
+            <p className="text-slate-faint text-[0.6rem] font-mono uppercase tracking-wider mb-1">You called</p>
+            <p className="text-paper text-sm font-semibold leading-snug">{yourCall}</p>
           </div>
           <div>
-            <p className="text-slate-faint text-[0.6rem] font-mono uppercase tracking-wider mb-1">What actually happened</p>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              <ShareStat label="Winner" hit={b.winnerCorrect} />
-              <ShareStat label="Scoreline" hit={b.scorelineCorrect} />
-              {b.mentionedEventsMissed.length > 0 && (
-                <ShareStat label="Red card" hit={false} />
-              )}
-            </div>
+            <p className="text-slate-faint text-[0.6rem] font-mono uppercase tracking-wider mb-1">What happened</p>
+            <p className="text-paper text-sm font-semibold leading-snug">{actualResult}</p>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+            <ShareStat label="Winner" hit={b.winnerCorrect} />
+            <ShareStat label="Scoreline" hit={b.scorelineCorrect} />
+            {b.mentionedEventsMissed.length > 0 && (
+              <ShareStat label="Red card" hit={false} />
+            )}
           </div>
         </div>
+
+        <div className="h-px bg-line my-5"></div>
+
+        <p className="text-slate-faint text-xs text-center">Call it before the final whistle - callthematch.app</p>
       </div>
 
       <div className="flex gap-3 mt-3">

@@ -1,5 +1,5 @@
-﻿import React, { useState } from "react";
-import { Radio, Mail } from "lucide-react";
+import React, { useState } from "react";
+import { Radio, Mail, AlertTriangle, Home } from "lucide-react";
 import MatchList from "./components/MatchList.jsx";
 import PredictionScreen from "./components/PredictionScreen.jsx";
 import LiveMatch from "./components/LiveMatch.jsx";
@@ -13,6 +13,12 @@ import { getUserId, getDisplayName, setDisplayName as persistDisplayName } from 
 
 const FINISHED_PHASES = ["F", "FET", "FPE"];
 const NOT_STARTED_PHASES = ["NS"];
+// Genuinely live/in-progress phases only - anything not explicitly recognized
+// (postponed, cancelled, abandoned, coverage suspended, or an unmapped code)
+// must NOT fall through to the live view, or the user gets stuck watching a
+// chart that will never update. See DEAD_PHASES below.
+const LIVE_PHASES = ["H1", "HT", "H2", "WET", "ET1", "HTET", "ET2", "WPE", "PE"];
+const DEAD_PHASES = ["A", "C", "TXCC", "TXCS", "P", "I"];
 
 export default function App() {
   const [view, setView] = useState("home"); // home | predict | waiting | live | result | room | leaderboard
@@ -55,7 +61,11 @@ export default function App() {
   // ACTUAL current phase - not a blind jump to the live view every time.
   // NS (not started) -> waiting screen. Finished -> straight to results
   // (this is what makes testing against already-concluded matches work).
-  // Anything else (H1/HT/H2/ET*/PE) -> the real live view.
+  // Recognized in-progress phases (H1/HT/H2/ET*/PE) -> the real live view.
+  // Postponed/cancelled/abandoned/suspended, or any phase code we don't
+  // recognize -> an explicit "unavailable" screen. Previously anything not
+  // NS or finished fell through to "live" by default, which is what left
+  // people stuck on a spinner for matches that were never going to go live.
   function goWatchOrWait() {
     if (!selectedMatch) return;
     const phase = selectedMatch.gamePhase;
@@ -64,8 +74,10 @@ export default function App() {
       setView("result");
     } else if (NOT_STARTED_PHASES.includes(phase)) {
       setView("waiting");
-    } else {
+    } else if (LIVE_PHASES.includes(phase)) {
       setView("live");
+    } else {
+      setView("unavailable");
     }
   }
 
@@ -143,6 +155,10 @@ export default function App() {
           />
         )}
 
+        {view === "unavailable" && selectedMatch && (
+          <UnavailableScreen match={selectedMatch} onDone={goHome} />
+        )}
+
         {view === "live" && selectedMatch && (
           <LiveMatch
             match={selectedMatch}
@@ -180,6 +196,45 @@ export default function App() {
       {showRecovery && (
         <AccountRecovery onClose={function () { setShowRecovery(false); }} />
       )}
+    </div>
+  );
+}
+
+const DEAD_PHASE_MESSAGES = {
+  P: "This match has been postponed. Your call is still on file - check back once a new kickoff time is confirmed.",
+  A: "This match was abandoned before it finished, so there's no final result to score your call against.",
+  C: "This match was cancelled. Your call won't be scored - pick another fixture to play.",
+  TXCC: "Live coverage for this match was cancelled on our data feed, so we can't show live odds or a result.",
+  TXCS: "Live coverage for this match is temporarily suspended. Check back shortly.",
+  I: "This match has been interrupted. We'll have an update once play resumes or the match is called off.",
+};
+
+function UnavailableScreen(props) {
+  const match = props.match;
+  const message =
+    DEAD_PHASE_MESSAGES[match.gamePhase] ||
+    "We don't have live data for this match right now. Your call is still saved - check back later.";
+
+  return (
+    <div className="py-16 text-center space-y-6">
+      <div className="w-16 h-16 rounded-full bg-red/10 flex items-center justify-center mx-auto">
+        <AlertTriangle className="w-8 h-8 text-red" />
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="font-display font-bold text-2xl text-paper">
+          {match.homeTeam} vs {match.awayTeam}
+        </h2>
+        <p className="text-slate-faint max-w-sm mx-auto">{message}</p>
+      </div>
+
+      <button
+        onClick={props.onDone}
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gold text-ink font-semibold hover:bg-gold-bright transition-colors"
+      >
+        <Home className="w-4 h-4" />
+        Back to matches
+      </button>
     </div>
   );
 }

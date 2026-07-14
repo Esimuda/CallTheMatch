@@ -124,6 +124,9 @@ export async function fetchPredictionResult(predictionId, originalText) {
     originalPredictionText:
       originalText ||
       "I think France wins 2-1, Mbappe scores, maybe a red card for Morocco in the second half",
+    predictedWinner: "home",
+    predictedScoreHome: 2,
+    predictedScoreAway: 1,
     accuracyPct: 78,
     comparisonSummary:
       "You called the winner right and nearly nailed the scoreline. You had a red card down as a maybe - " +
