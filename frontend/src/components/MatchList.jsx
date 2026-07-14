@@ -28,6 +28,8 @@ function formatKickoff(iso) {
   });
 }
 
+const FINISHED_PHASES = ["F", "FET", "FPE"];
+
 export default function MatchList(props) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,20 @@ export default function MatchList(props) {
     return function () { active = false; };
   }, []);
 
-  const featured = matches[0];
+  // The backend returns every match sorted only by kickoff time, with no
+  // phase filtering - so matches from days ago that have already finished
+  // were showing up above (and mixed into) "Upcoming fixtures". Split them
+  // here instead: upcoming/live matches stay soonest-first, finished
+  // matches move to their own section, most recent first.
+  const upcoming = matches
+    .filter(function (m) { return !FINISHED_PHASES.includes(m.gamePhase); })
+    .sort(function (a, b) { return new Date(a.kickoffTime) - new Date(b.kickoffTime); });
+
+  const finished = matches
+    .filter(function (m) { return FINISHED_PHASES.includes(m.gamePhase); })
+    .sort(function (a, b) { return new Date(b.kickoffTime) - new Date(a.kickoffTime); });
+
+  const featured = upcoming[0] || matches[0];
 
   return (
     <div>
@@ -57,9 +72,13 @@ export default function MatchList(props) {
 
         {loading && <FixtureListSkeleton />}
 
+        {!loading && upcoming.length === 0 && (
+          <p className="text-slate-faint text-sm px-1">No upcoming fixtures right now - check back soon.</p>
+        )}
+
         {!loading && (
           <div className="flex flex-col gap-3">
-            {matches.map(function (m, i) {
+            {upcoming.map(function (m, i) {
               return (
                 <FixtureCard
                   key={m.id}
@@ -80,6 +99,28 @@ export default function MatchList(props) {
           </div>
         )}
       </div>
+
+      {!loading && finished.length > 0 && (
+        <div className="mt-10">
+          <div className="flex items-center gap-2 mb-4 text-slate text-xs font-mono uppercase tracking-wider">
+            <Trophy className="w-3.5 h-3.5" />
+            Recent results
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {finished.map(function (m, i) {
+              return (
+                <FinishedFixtureCard
+                  key={m.id}
+                  match={m}
+                  delayMs={i * 90}
+                  onViewLeaderboard={function () { props.onViewLeaderboard(m); }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -191,6 +232,44 @@ function FixtureCard(props) {
         View leaderboard
       </button>
     </div>
+  );
+}
+
+function FinishedFixtureCard(props) {
+  const m = props.match;
+  return (
+    <button
+      onClick={props.onViewLeaderboard}
+      className="animate-rise w-full text-left bg-surface/60 border border-line rounded-2xl px-5 py-4 flex items-center justify-between hover:border-gold transition-colors group"
+      style={{ animationDelay: props.delayMs + "ms" }}
+    >
+      <div className="flex items-center gap-4">
+        <div className="flex items-center -space-x-3">
+          <img
+            src={flagUrl(m.homeCode, 160)}
+            alt={m.homeTeam}
+            className="w-11 h-11 rounded-full object-cover border-2 border-surface shadow-md opacity-80"
+          />
+          <img
+            src={flagUrl(m.awayCode, 160)}
+            alt={m.awayTeam}
+            className="w-11 h-11 rounded-full object-cover border-2 border-surface shadow-md opacity-80"
+          />
+        </div>
+        <div>
+          <div className="font-display font-semibold text-paper text-base leading-tight">
+            {m.homeTeam} <span className="text-slate-faint font-body font-normal text-sm">vs</span> {m.awayTeam}
+          </div>
+          <div className="text-slate-faint text-xs mt-1 font-mono uppercase tracking-wider">
+            Full-time - {formatKickoff(m.kickoffTime)}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 text-slate-faint group-hover:text-gold text-xs font-mono uppercase tracking-wider transition-colors">
+        <Trophy className="w-3.5 h-3.5" />
+        Leaderboard
+      </div>
+    </button>
   );
 }
 
