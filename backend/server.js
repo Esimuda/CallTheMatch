@@ -9,6 +9,7 @@ import { scorePrediction, buildComparisonSummary, buildCelebrationLine } from ".
 import { createInitialState, parseScoreUpdate } from "./lib/scores-parser.js";
 import { isFinished } from "./lib/game-phase.js";
 import { apiBaseUrl, txlineHeaders } from "./lib/txline.js";
+import { issueEmailCode, verifyEmailCode } from "./lib/email-auth.js";
 
 const app = express();
 app.use(cors());
@@ -41,10 +42,14 @@ app.get("/api/matches", async (req, res) => {
 // --- POST /api/predictions ---
 app.post("/api/predictions", async (req, res) => {
   try {
-    const { userId, displayName, matchId, roomId, predictionText } = req.body;
+    const { userId, displayName, matchId, roomId, inviteCode, predictionText } = req.body;
 
     if (!userId || !displayName || !matchId || !predictionText) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    if (String(predictionText).trim().length > 2000) {
+      return res.status(400).json({ error: "Prediction text is too long (max 2000 characters)" });
     }
 
     const match = await db.getMatchById(matchId).catch(() => null);
@@ -52,7 +57,14 @@ app.post("/api/predictions", async (req, res) => {
       return res.status(404).json({ error: "Match not found" });
     }
 
-    await db.upsertUser(userId, displayName);
+    try {
+      await db.claimDisplayName(userId, displayName.trim());
+    } catch (nameErr) {
+      if (nameErr.status === 409) {
+        return res.status(409).json({ error: nameErr.message });
+      }
+      throw nameErr;
+    }
 
     const extracted = await extractPrediction(predictionText, match.home_team, match.away_team);
 
@@ -66,6 +78,20 @@ app.post("/api/predictions", async (req, res) => {
       extraction_confidence: extracted.confidence,
     };
 
+    // Resolve room: prefer real room UUID; fall back to looking up invite code
+    // (older clients mistakenly sent the invite code as roomId).
+    let resolvedRoomId = null;
+    const roomLookupKey = roomId || inviteCode || null;
+    if (roomLookupKey) {
+      const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(roomLookupKey);
+      if (looksLikeUuid) {
+        resolvedRoomId = roomLookupKey;
+      } else {
+        const room = await db.getRoomByCode(String(roomLookupKey).toUpperCase());
+        resolvedRoomId = room?.id || null;
+      }
+    }
+
     const existing = await db.getUserPredictionForMatch(userId, matchId);
     let prediction;
     let status = "submitted";
@@ -73,21 +99,19 @@ app.post("/api/predictions", async (req, res) => {
     if (existing) {
       prediction = await db.updatePredictionContent(existing.id, {
         ...fields,
-        room_id: roomId || existing.room_id || null,
+        room_id: resolvedRoomId || existing.room_id || null,
       });
       status = "updated";
     } else {
       prediction = await db.createPrediction({
         user_id: userId,
         match_id: matchId,
-        room_id: roomId || null,
+        room_id: resolvedRoomId,
         ...fields,
       });
     }
 
-    // Submitting a prediction with a roomId implicitly joins that room -
-    // no separate "join" step in the frontend flow.
-    const effectiveRoomId = roomId || prediction.room_id;
+    const effectiveRoomId = resolvedRoomId || prediction.room_id;
     if (effectiveRoomId) {
       await db.addRoomMember(effectiveRoomId, userId);
     }
@@ -99,7 +123,49 @@ app.post("/api/predictions", async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to submit prediction" });
+    res.status(500).json({ error: err.message || "Failed to submit prediction" });
+  }
+});
+
+// --- POST /api/auth/send-code ---
+app.post("/api/auth/send-code", async (req, res) => {
+  try {
+    const { email, userId } = req.body;
+    const result = await issueEmailCode(email, userId);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 500).json({ error: err.message || "Failed to send code" });
+  }
+});
+
+// --- POST /api/auth/verify-code ---
+app.post("/api/auth/verify-code", async (req, res) => {
+  try {
+    const { email, code, userId } = req.body;
+    const result = verifyEmailCode(email, code, userId);
+    await db.setUserRecoveryEmail(result.userId, result.email);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 500).json({ error: err.message || "Failed to verify code" });
+  }
+});
+
+// --- GET /api/auth/check-name ---
+app.get("/api/auth/check-name", async (req, res) => {
+  try {
+    const name = req.query.name;
+    const userId = req.query.userId || null;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: "Missing name" });
+    }
+    const existing = await db.findUserByDisplayName(name);
+    const available = !existing || (userId && existing.id === userId);
+    res.json({ available, name: String(name).trim() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to check name" });
   }
 });
 
@@ -294,7 +360,14 @@ app.post("/api/rooms", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    await db.upsertUser(createdByUserId, createdByName || "Anonymous");
+    try {
+      await db.claimDisplayName(createdByUserId, createdByName || "Anonymous");
+    } catch (nameErr) {
+      if (nameErr.status === 409) {
+        return res.status(409).json({ error: nameErr.message });
+      }
+      throw nameErr;
+    }
     const room = await db.createRoom(matchId, createdByUserId);
     await db.addRoomMember(room.id, createdByUserId);
 

@@ -48,6 +48,10 @@ export function getUserId() {
   return id;
 }
 
+export function setUserId(id) {
+  safeSet(USER_ID_KEY, id);
+}
+
 export function getDisplayName() {
   return safeGet(DISPLAY_NAME_KEY) || "";
 }

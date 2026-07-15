@@ -19,6 +19,8 @@ export default function PredictionScreen(props) {
   const [extracted, setExtracted] = useState(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [nameError, setNameError] = useState(null);
 
   const isFirstTimeRef = useRef(!props.displayName);
   const recognitionRef = useRef(null);
@@ -104,18 +106,32 @@ export default function PredictionScreen(props) {
   async function handleSubmit() {
     if (!text.trim() || needsName || submitting) return;
     setSubmitting(true);
-    props.setDisplayName(nameInput.trim());
+    setSubmitError(null);
+    setNameError(null);
 
-    const result = await submitPrediction({
-      userId: getUserId(),
-      displayName: nameInput.trim(),
-      matchId: match.id,
-      roomId: props.inviteCode || null,
-      predictionText: text.trim(),
-    });
+    const trimmedName = nameInput.trim();
+    props.setDisplayName(trimmedName);
 
-    applyExistingPrediction(result.predictionId, text.trim(), result.extracted);
-    setEditing(false);
+    try {
+      const result = await submitPrediction({
+        userId: getUserId(),
+        displayName: trimmedName,
+        matchId: match.id,
+        inviteCode: props.inviteCode || null,
+        roomId: props.roomId || null,
+        predictionText: text.trim(),
+      });
+
+      applyExistingPrediction(result.predictionId, text.trim(), result.extracted);
+      setEditing(false);
+    } catch (err) {
+      const message = err.message || "Could not lock in your call. Try again.";
+      if (/already taken|display name/i.test(message)) {
+        setNameError(message);
+      } else {
+        setSubmitError(message);
+      }
+    }
     setSubmitting(false);
   }
 
@@ -235,7 +251,7 @@ export default function PredictionScreen(props) {
         </div>
       )}
 
-      {isFirstTimeRef.current && (
+      {(isFirstTimeRef.current || nameError) && (
         <div className="mt-5 animate-rise">
           <label className="block text-slate text-xs font-mono uppercase tracking-wider mb-2">
             What should we call you?
@@ -243,11 +259,26 @@ export default function PredictionScreen(props) {
           <input
             type="text"
             value={nameInput}
-            onChange={function (e) { setNameInput(e.target.value); }}
+            onChange={function (e) {
+              setNameInput(e.target.value);
+              setNameError(null);
+            }}
             placeholder="Your display name"
             autoComplete="off"
             className="w-full bg-surface border border-line rounded-xl px-4 py-3 text-paper placeholder-slate-faint outline-none focus:border-gold transition-colors"
           />
+          {nameError && (
+            <p className="text-red text-xs mt-2">{nameError}</p>
+          )}
+          <p className="text-slate-faint text-xs mt-2">
+            Display names are unique — if someone's already using yours, pick another.
+          </p>
+        </div>
+      )}
+
+      {submitError && (
+        <div className="mt-4 bg-red/10 border border-red/40 rounded-xl px-4 py-3 text-red text-sm">
+          {submitError}
         </div>
       )}
 
@@ -259,7 +290,7 @@ export default function PredictionScreen(props) {
         {submitting ? (
           <React.Fragment>
             <Sparkles className="w-4 h-4 animate-pulse-live" />
-            Reading your call...
+            {isRecall ? "Scoring your answer..." : "Reading your call..."}
           </React.Fragment>
         ) : (
           <React.Fragment>

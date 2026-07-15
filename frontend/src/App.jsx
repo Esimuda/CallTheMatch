@@ -27,6 +27,7 @@ export default function App() {
   const [predictionText, setPredictionText] = useState("");
   const [predictionId, setPredictionId] = useState(null);
   const [inviteCode, setInviteCode] = useState(null);
+  const [roomId, setRoomId] = useState(null);
   const [resultAccuracy, setResultAccuracy] = useState(null);
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryLinked, setRecoveryLinked] = useState(!!getRecoveryEmail());
@@ -45,6 +46,7 @@ export default function App() {
     setPredictionText("");
     setPredictionId(null);
     setInviteCode(null);
+    setRoomId(null);
     setResultAccuracy(null);
   }
 
@@ -85,6 +87,7 @@ export default function App() {
   async function handleCreateRoom() {
     const res = await createRoom(selectedMatch.id, getUserId(), displayName);
     setInviteCode(res.inviteCode);
+    setRoomId(res.roomId);
     setView("room");
   }
 
@@ -92,12 +95,14 @@ export default function App() {
     setSelectedMatch(match);
     const res = await createRoom(match.id, getUserId(), displayName);
     setInviteCode(res.inviteCode);
+    setRoomId(res.roomId);
     setView("predict");
   }
 
   async function handleJoinRoom(code, name, match) {
     updateDisplayName(name);
     setInviteCode(code);
+    setRoomId(null); // resolved from invite code on the server when submitting
     setSelectedMatch(match);
     setView("predict");
   }
@@ -152,6 +157,7 @@ export default function App() {
             onGoLive={goWatchOrWait}
             onCreateRoom={handleCreateRoom}
             inviteCode={inviteCode}
+            roomId={roomId}
             onGoToRoom={function () { setView("room"); }}
             onOpenRecovery={openRecovery}
             recoveryLinked={recoveryLinked}

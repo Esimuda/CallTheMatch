@@ -181,13 +181,62 @@ export async function getRoomMembersWithPredictions(roomId, matchId, requestingU
 }
 
 // --- Users ---
-export async function upsertUser(id, displayName) {
+export async function upsertUser(id, displayName, extra = {}) {
   const { data, error } = await supabase
     .from("users")
-    .upsert({ id, display_name: displayName })
+    .upsert({ id, display_name: displayName, ...extra })
     .select();
   if (error) throw error;
   return data[0];
+}
+
+export async function findUserByDisplayName(displayName) {
+  const needle = String(displayName || "").trim();
+  if (!needle) return null;
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, display_name")
+    .ilike("display_name", needle);
+  if (error) throw error;
+  // ilike is pattern match - exact case-insensitive equality among results
+  return (data || []).find((u) => u.display_name.toLowerCase() === needle.toLowerCase()) || null;
+}
+
+export async function claimDisplayName(userId, displayName) {
+  const existing = await findUserByDisplayName(displayName);
+  if (existing && existing.id !== userId) {
+    const err = new Error("That display name is already taken. Pick another.");
+    err.status = 409;
+    throw err;
+  }
+  return upsertUser(userId, displayName);
+}
+
+export async function setUserRecoveryEmail(userId, email) {
+  // recovery_email column may not exist on older schemas - try, then soft-fail.
+  const { data, error } = await supabase
+    .from("users")
+    .update({ recovery_email: email })
+    .eq("id", userId)
+    .select();
+  if (error) {
+    console.warn("[db] Could not save recovery_email (column may be missing):", error.message);
+    return null;
+  }
+  return data?.[0] || null;
+}
+
+export async function findUserByRecoveryEmail(email) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, display_name, recovery_email")
+    .ilike("recovery_email", email)
+    .maybeSingle();
+  if (error) {
+    console.warn("[db] recovery_email lookup failed:", error.message);
+    return null;
+  }
+  return data;
 }
 
 // --- Leaderboard (per-match, not truly global across matches) ---

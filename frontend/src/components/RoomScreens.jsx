@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Users, Copy, Check, ArrowLeft, Play, Crown, LogIn, X, PlusCircle } from "lucide-react";
-import { fetchRoom } from "../lib/api.js";
+import { fetchRoom, checkDisplayName } from "../lib/api.js";
 import { flagUrl } from "../lib/flags.js";
 
 export function RoomLobby(props) {
@@ -131,12 +131,24 @@ export function JoinRoomForm(props) {
   const [name, setName] = useState("");
   const [matchId, setMatchId] = useState(props.matches[0] ? props.matches[0].id : "");
   const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState(null);
 
   async function handleJoin() {
     if (!code.trim() || !name.trim() || joining) return;
     const match = props.matches.filter(function (m) { return m.id === matchId; })[0] || props.matches[0];
     setJoining(true);
-    await props.onJoin(code.trim().toUpperCase(), name.trim(), match);
+    setJoinError(null);
+    try {
+      const check = await checkDisplayName(name.trim());
+      if (!check.available) {
+        setJoinError("That display name is already taken. Pick another.");
+        setJoining(false);
+        return;
+      }
+      await props.onJoin(code.trim().toUpperCase(), name.trim(), match);
+    } catch (err) {
+      setJoinError(err.message || "Could not join room.");
+    }
     setJoining(false);
   }
 
@@ -184,10 +196,17 @@ export function JoinRoomForm(props) {
       />
       <input
         value={name}
-        onChange={function (e) { setName(e.target.value); }}
+        onChange={function (e) {
+          setName(e.target.value);
+          setJoinError(null);
+        }}
         placeholder="Your display name"
-        className="w-full bg-ink border border-line rounded-xl px-4 py-3 text-paper placeholder-slate-faint outline-none focus:border-gold transition-colors mb-4"
+        className="w-full bg-ink border border-line rounded-xl px-4 py-3 text-paper placeholder-slate-faint outline-none focus:border-gold transition-colors mb-2"
       />
+      {joinError && <p className="text-red text-xs mb-3">{joinError}</p>}
+      {!joinError && (
+        <p className="text-slate-faint text-xs mb-4">Names are unique across CallTheMatch.</p>
+      )}
 
       <button
         onClick={handleJoin}

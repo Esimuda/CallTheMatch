@@ -36,6 +36,24 @@ export async function submitPrediction(payload) {
   return post("/api/predictions", payload);
 }
 
+// GET /api/auth/check-name
+export async function checkDisplayName(name) {
+  const userId = getUserId();
+  return get(
+    `/api/auth/check-name?name=${encodeURIComponent(name)}&userId=${encodeURIComponent(userId)}`
+  );
+}
+
+// POST /api/auth/send-code
+export async function sendEmailCode(email) {
+  return post("/api/auth/send-code", { email, userId: getUserId() });
+}
+
+// POST /api/auth/verify-code
+export async function verifyEmailCode(email, code) {
+  return post("/api/auth/verify-code", { email, code, userId: getUserId() });
+}
+
 // GET /api/matches/:id/my-prediction
 export async function fetchMyPrediction(matchId) {
   const userId = getUserId();

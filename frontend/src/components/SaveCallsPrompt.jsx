@@ -24,15 +24,15 @@ export default function SaveCallsPrompt(props) {
 
       <p className="text-slate text-sm leading-relaxed mb-4">
         {props.compact
-          ? "Leave an email and we'll send a link. Open it on another device and your calls show up there too."
-          : "Right now your prediction lives in this browser. Add an email once and you can open your calls on a friend's phone, a new phone, or after clearing your browser."}
+          ? "Leave an email, confirm a code, and reclaim your calls on another device."
+          : "Right now your prediction lives in this browser. Add an email, confirm a 6-digit code, and you can open your calls on a friend's phone or a new device."}
       </p>
 
       {!props.compact && (
         <ol className="flex flex-col gap-2.5 mb-5">
           <StepRow done icon={Check} text="Your call is locked in on this device" />
-          <StepRow icon={Mail} text="Add your email — we send a one-time link" />
-          <StepRow icon={Smartphone} text="Open that link on any phone — same calls, same scores" />
+          <StepRow icon={Mail} text="Add your email — we send a 6-digit code" />
+          <StepRow icon={Smartphone} text="Confirm the code — same calls on any phone" />
         </ol>
       )}
 
