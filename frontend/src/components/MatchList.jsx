@@ -24,13 +24,28 @@ export default function MatchList(props) {
 
   useEffect(function () {
     let active = true;
-    fetchMatches().then(function (data) {
-      if (active) {
-        setMatches(data);
-        setLoading(false);
-      }
-    });
-    return function () { active = false; };
+
+    function loadMatches(isInitial) {
+      fetchMatches()
+        .then(function (data) {
+          if (!active) return;
+          setMatches(data);
+          if (isInitial) setLoading(false);
+        })
+        .catch(function () {
+          if (active && isInitial) setLoading(false);
+        });
+    }
+
+    loadMatches(true);
+    // Keep the list self-updating so new fixtures and phase changes from the
+    // poll worker show up without a hard refresh.
+    const interval = setInterval(function () { loadMatches(false); }, 45000);
+
+    return function () {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // The backend returns every match sorted only by kickoff time, with no
@@ -216,6 +231,9 @@ function FixtureCard(props) {
             </div>
             <div className="text-slate text-xs mt-1 font-mono">
               {formatKickoff(m.kickoffTime)} - {m.competition}
+              {m.gamePhase && m.gamePhase !== "NS" && !["F", "FET", "FPE"].includes(m.gamePhase) && (
+                <span className="ml-2 text-red uppercase tracking-wider">Live</span>
+              )}
             </div>
           </div>
         </div>
@@ -256,7 +274,13 @@ function FinishedFixtureCard(props) {
           </div>
           <div>
             <div className="font-display font-semibold text-paper text-base leading-tight">
-              {m.homeTeam} <span className="text-slate-faint font-body font-normal text-sm">vs</span> {m.awayTeam}
+              {m.homeTeam}{" "}
+              {typeof m.scoreHome === "number" && typeof m.scoreAway === "number" ? (
+                <span className="text-gold font-mono text-sm mx-1">{m.scoreHome}-{m.scoreAway}</span>
+              ) : (
+                <span className="text-slate-faint font-body font-normal text-sm">vs</span>
+              )}{" "}
+              {m.awayTeam}
             </div>
             <div className="text-slate-faint text-xs mt-1 font-mono uppercase tracking-wider">
               Full-time - {formatKickoff(m.kickoffTime)}

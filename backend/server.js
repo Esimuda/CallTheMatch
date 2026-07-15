@@ -31,6 +31,8 @@ app.get("/api/matches", async (req, res) => {
         kickoffTime: m.kickoff_time,
         competition: m.competition,
         gamePhase: m.game_phase,
+        scoreHome: m.score_home,
+        scoreAway: m.score_away,
       }))
     );
   } catch (err) {

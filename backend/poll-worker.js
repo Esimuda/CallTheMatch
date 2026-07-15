@@ -4,10 +4,12 @@ import { createInitialState, parseScoreUpdate } from "./lib/scores-parser.js";
 import { isFinished, isDead } from "./lib/game-phase.js";
 import { computeImpliedPct, isSignificantMove, buildMoveCaption } from "./lib/odds-detector.js";
 import { finalizeMatch } from "./lib/match-finish.js";
+import { syncFixturesFromFeed } from "./lib/fixture-sync.js";
 import * as db from "./lib/db.js";
 import { apiBaseUrl, txlineHeaders } from "./lib/txline.js";
 
-const POLL_INTERVAL_MS = 30000; // 30 seconds
+const POLL_INTERVAL_MS = 30000; // 30 seconds - scores/odds for live matches
+const FIXTURE_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes - discover new fixtures
 // Don't poll fixtures that are still far from kickoff.
 const PREMATCH_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
@@ -15,6 +17,18 @@ const PREMATCH_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 // (Ts: 0) every poll, so a restart just replays all messages and rebuilds
 // identical state - no need to persist it.
 const stateByFixture = new Map();
+
+let lastFixtureSyncAt = 0;
+
+async function maybeSyncFixtures(force = false) {
+  if (!force && Date.now() - lastFixtureSyncAt < FIXTURE_SYNC_INTERVAL_MS) return;
+  try {
+    await syncFixturesFromFeed();
+    lastFixtureSyncAt = Date.now();
+  } catch (err) {
+    console.error("[fixtures] Sync failed:", err.response?.status || err.message);
+  }
+}
 
 async function fetchScores(fixtureId) {
   const res = await axios.get(`${apiBaseUrl}/scores/snapshot/${fixtureId}`, {
@@ -140,6 +154,10 @@ async function pollOnce() {
   polling = true;
 
   try {
+    // Discover newly scheduled World Cup fixtures (and refresh kickoffs)
+    // without clobbering live scores. Runs on startup + every 30 minutes.
+    await maybeSyncFixtures();
+
     const matches = await db.getMatches();
     const active = matches.filter(shouldPoll);
 
@@ -155,12 +173,14 @@ async function pollOnce() {
   }
 }
 
-console.log(`Starting poll worker. Polling every ${POLL_INTERVAL_MS / 1000}s. Press Ctrl+C to stop.`);
-pollOnce();
-const pollTimer = setInterval(pollOnce, POLL_INTERVAL_MS);
+console.log(`Starting poll worker. Scores every ${POLL_INTERVAL_MS / 1000}s; fixtures every ${FIXTURE_SYNC_INTERVAL_MS / 60000}m.`);
+maybeSyncFixtures(true).finally(function () {
+  pollOnce();
+  const pollTimer = setInterval(pollOnce, POLL_INTERVAL_MS);
 
-process.on("SIGINT", () => {
-  console.log("\nReceived interrupt, stopping...");
-  clearInterval(pollTimer);
-  process.exit(0);
+  process.on("SIGINT", () => {
+    console.log("\nReceived interrupt, stopping...");
+    clearInterval(pollTimer);
+    process.exit(0);
+  });
 });
